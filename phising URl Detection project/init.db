@@ -1,0 +1,11 @@
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    return redirect("/admin/login")
+
+
+# Initialize database
+init_db()
+
+if __name__ == "__main__":
+    app.run()

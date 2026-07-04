@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel — Phishing URL Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; }
+    a { text-decoration: none; color: inherit; }
+    .sidebar { width: 240px; min-height: 100vh; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+    .sidebar-brand { padding: 24px 20px 20px; border-bottom: 1px solid #334155; }
+    .sidebar-brand h2 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+    .sidebar-brand p  { font-size: 11px; color: #64748b; margin-top: 2px; letter-spacing: .05em; text-transform: uppercase; }
+    .sidebar-nav { flex: 1; padding: 16px 0; }
+    .nav-section-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #475569; text-transform: uppercase; padding: 12px 20px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 14px; font-weight: 500; color: #94a3b8; cursor: pointer; transition: background .15s, color .15s; border-left: 3px solid transparent; }
+    .nav-item:hover  { background: #273548; color: #f1f5f9; }
+    .nav-item.active { background: #1d3557; color: #60a5fa; border-left-color: #3b82f6; }
+    .nav-item .icon  { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer { padding: 16px 20px; border-top: 1px solid #334155; font-size: 12px; color: #475569; }
+    .sidebar-footer .admin-name { color: #94a3b8; font-weight: 600; font-size: 13px; }
+    .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+    .topbar { background: #1e293b; border-bottom: 1px solid #334155; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .topbar-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-badge { background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 50px; }
+    .logout-link { background: #334155; color: #94a3b8; padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; transition: background .2s; }
+    .logout-link:hover { background: #dc2626; color: #fff; }
+    .content { padding: 28px; flex: 1; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; margin-bottom: 28px; }
+    .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; position: relative; overflow: hidden; }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .stat-card.blue::before   { background: #3b82f6; }
+    .stat-card.red::before    { background: #ef4444; }
+    .stat-card.green::before  { background: #22c55e; }
+    .stat-card.yellow::before { background: #f59e0b; }
+    .stat-card.purple::before { background: #8b5cf6; }
+    .stat-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
+    .stat-value { font-size: 36px; font-weight: 800; color: #f1f5f9; line-height: 1; }
+    .stat-sub   { font-size: 12px; color: #64748b; margin-top: 6px; }
+    .stat-icon  { position: absolute; right: 16px; top: 16px; font-size: 28px; opacity: .15; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+    .section-header h3 { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+    .search-bar { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 14px; color: #e2e8f0; font-size: 14px; width: 220px; }
+    .search-bar:focus { outline: none; border-color: #3b82f6; }
+    .search-bar::placeholder { color: #475569; }
+    .admin-table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .admin-table th { background: #0f172a; color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 12px 16px; text-align: left; }
+    .admin-table td { padding: 12px 16px; border-top: 1px solid #334155; vertical-align: middle; }
+    .admin-table tr:hover td { background: #273548; }
+    .pill { display: inline-block; padding: 3px 10px; border-radius: 50px; font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+    .pill-danger  { background: rgba(220,38,38,.15); color: #f87171; border: 1px solid rgba(220,38,38,.3); }
+    .pill-safe    { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+    .pill-admin   { background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.3); }
+    .pill-user    { background: rgba(59,130,246,.15);  color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+    .url-mono { font-family: monospace; font-size: 12px; color: #93c5fd; word-break: break-all; max-width: 260px; }
+    .risk-bar-wrap { width: 80px; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 6px; }
+    .risk-bar    { height: 100%; border-radius: 3px; }
+    .risk-high   { background: #ef4444; }
+    .risk-medium { background: #f59e0b; }
+    .risk-low    { background: #22c55e; }
+    .risk-text-high   { font-weight: 700; color: #f87171; }
+    .risk-text-medium { font-weight: 700; color: #fbbf24; }
+    .risk-text-low    { font-weight: 700; color: #4ade80; }
+    .btn-del { background: rgba(220,38,38,.12); color: #f87171; border: 1px solid rgba(220,38,38,.25); padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; }
+    .btn-del:hover { background: #dc2626; color: #fff; }
+    .empty { text-align: center; padding: 48px; color: #475569; font-size: 14px; }
+    .empty .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .flash { padding: 12px 18px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+    .flash-success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); color: #4ade80; }
+    .flash-error   { background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.3); color: #f87171; }
+    .activity-feed { display: flex; flex-direction: column; gap: 10px; }
+    .activity-item { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 14px; }
+    .activity-icon { font-size: 22px; flex-shrink: 0; }
+    .activity-text { flex: 1; font-size: 13px; color: #cbd5e1; }
+    .activity-text strong { color: #f1f5f9; }
+    .activity-time { font-size: 11px; color: #475569; flex-shrink: 0; }
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; }
+      .sidebar-brand h2, .sidebar-brand p, .nav-item span, .nav-section-label, .sidebar-footer .admin-name { display: none; }
+      .nav-item { justify-content: center; padding: 12px; }
+      .main { margin-left: 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h2>🛡 Admin Panel</h2>
+    <p>Phishing Detector</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="showSection('dashboard')">
+      <span class="icon">📊</span><span>Dashboard</span>
+    </div>
+    <div class="nav-section-label">Management</div>
+    <div class="nav-item" onclick="showSection('users')">
+      <span class="icon">👥</span><span>Users</span>
+    </div>
+    <div class="nav-item" onclick="showSection('scans')">
+      <span class="icon">🔍</span><span>All Scans</span>
+    </div>
+    <div class="nav-item" onclick="showSection('phishing')">
+      <span class="icon">🚨</span><span>Phishing Detections</span>
+    </div>
+    <div class="nav-section-label">System</div>
+    <div class="nav-item" onclick="showSection('settings')">
+      <span class="icon">⚙️</span><span>Settings</span>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="admin-name">{{ admin_user }}</div>
+    <div style="font-size:11px;margin-top:2px;">Administrator</div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">📊 Dashboard</div>
+    <div class="topbar-right">
+      {% if phishing_count > 0 %}
+        <span class="topbar-badge">🚨 {{ phishing_count }} Threats</span>
+      {% endif %}
+      <a href="/admin/logout" class="logout-link">Logout</a>
+    </div>
+  </div>
+
+  <div class="content">
+
+    {% if message %}
+      <div class="flash flash-success">✅ {{ message }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="flash flash-error">⚠ {{ error }}</div>
+    {% endif %}
+
+    <!-- DASHBOARD -->
+    <div class="section active" id="section-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card blue">
+          <div class="stat-icon">👥</div>
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value">{{ total_users }}</div>
+          <div class="stat-sub">registered accounts</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon">🚨</div>
+          <div class="stat-label">Phishing Detected</div>
+          <div class="stat-value">{{ phishing_count }}</div>
+          <div class="stat-sub">malicious URLs found</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon">✅</div>
+          <div class="stat-label">Safe URLs</div>
+          <div class="stat-value">{{ safe_count }}</div>
+          <div class="stat-sub">clean scan results</div>
+        </div>
+        <div class="stat-card yellow">
+          <div class="stat-icon">🔍</div>
+          <div class="stat-label">Total Scans</div>
+          <div class="stat-value">{{ total_scans }}</div>
+          <div class="stat-sub">all time</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-icon">📈</div>
+          <div class="stat-label">Detection Rate</div>
+          <div class="stat-value">{{ detection_rate }}%</div>
+          <div class="stat-sub">phishing vs total</div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <h3>🕐 Recent Scan Activity</h3>
+      </div>
+      <div class="activity-feed">
+        {% for scan in recent_scans %}
+        <div class="activity-item">
+          <div class="activity-icon">
+            {% if 'PHISHING' in scan.result %}🚨{% else %}✅{% endif %}
+          </div>
+          <div class="activity-text">
+            <strong>{{ scan.username }}</strong> scanned
+            <span class="url-mono">{{ scan.url_short }}</span>
+            &mdash;
+            {% if 'PHISHING' in scan.result %}
+              <span class="pill pill-danger">{{ scan.result }}</span>
+            {% else %}
+              <span class="pill pill-safe">{{ scan.result }}</span>
+            {% endif %}
+          </div>
+          <div class="activity-time">Risk: {{ scan.risk }}%</div>
+        </div>
+        {% else %}
+        <div class="empty"><div class="empty-icon">📭</div>No scans yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="section" id="section-users">
+      <div class="section-header">
+        <h3>👥 Registered Users</h3>
+        <input class="search-bar" type="text" placeholder="🔍 Search users…" oninput="filterTable(this,'users-tbody')"/>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Username</th><th>Role</th>
+              <th>Total Scans</th><th>Phishing Found</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            {% for u in users %}
+            <tr>
+              <td style="color:#475569">{{ loop.index }}</td>
+              <td style="font-weight:600;color:#f1f5f9">{{ u.username }}</td>
+              <td>
+                {% if u.username == admin_user %}
+                  <span class="pill pill-admin">Admin</span>
+                {% else %}
+                  <span class="pill pill-user">User</span>
+                {% endif %}
+              </td>
+              <td style="color:#94a3b8">{{ u.scan_count }}</td>
+              <td>
+                {% if u.phish_count > 0 %}
+                  <span class="pill pill-danger">{{ u.phish_count }}</span>
+                {% else %}
+                  <span style="color:#475569">0</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.username != admin_user %}
+                <form method="POST" action="/admin/delete-user" style="display:inline"
+                      onsubmit="return confirm('Delete this user?')">
+                  <input type="hidden" name="username" value="{{ u.username }}"/>
+                  <button type="submit" class="btn-del">🗑 Delete</button>
+                </form>
+                {% else %}
+                  <span style="color:#475569;font-size:12px">–</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">No users found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ALL SCANS -->
+    <div class="section" id="section-scans">
+      <div class="section-header">
+        <h3>🔍 All Scan Records</h3>
+        <input class="search-bar" type="text" placeholder="🔍 Search scans…" oninput="filterTable(this,'scans-tbody')"/>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th><th>User</th><th>URL</th>
+              <th>Result</th><th>Risk Score</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="scans-tbody">
+            {% for s in all_scans %}
+            <tr>
+              <td style="color:#475569">{{ loop.index }}</td>
+              <td style="font-weight:600;color:#94a3b8">{{ s.username }}</td>
+              <td><div class="url-mono">{{ s.url_short }}</div></td>
+              <td>
+                {% if 'PHISHING' in s.result %}
+                  <span class="pill pill-danger">{{ s.result }}</span>
+                {% else %}
+                  <span class="pill pill-safe">{{ s.result }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.risk >= 70 %}
+                  <span class="risk-text-high">{{ s.risk }}%</span>
+                {% elif s.risk >= 40 %}
+                  <span class="risk-text-medium">{{ s.risk }}%</span>
+                {% else %}
+                  <span class="risk-text-low">{{ s.risk }}%</span>
+                {% endif %}
+                <div class="risk-bar-wrap">
+                  {% if s.risk >= 70 %}
+                    <div class="risk-bar risk-high" data-width="{{ s.risk }}"></div>
+                  {% elif s.risk >= 40 %}
+                    <div class="risk-bar risk-medium" data-width="{{ s.risk }}"></div>
+                  {% else %}
+                    <div class="risk-bar risk-low" data-width="{{ s.risk }}"></div>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <form method="POST" action="/admin/delete-scan" style="display:inline"
+                      onsubmit="return confirm('Delete this scan record?')">
+                  <input type="hidden" name="scan_id" value="{{ s.id }}"/>
+                  <button type="submit" class="btn-del">🗑 Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">No scan records found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PHISHING DETECTIONS -->
+    <div class="section" id="section-phishing">
+      <div class="section-header">
+        <h3>🚨 Phishing Detections Only</h3>
+        <span class="pill pill-danger">{{ phishing_count }} threats</span>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Detected By</th><th>Phishing URL</th><th>Risk Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in phishing_scans %}
+            <tr>
+              <td style="color:#475569">{{ loop.index }}</td>
+              <td style="font-weight:600;color:#94a3b8">{{ s.username }}</td>
+              <td><div class="url-mono" style="color:#f87171">{{ s.url }}</div></td>
+              <td>
+                <span class="risk-text-high">{{ s.risk }}%</span>
+                <div class="risk-bar-wrap">
+                  <div class="risk-bar risk-high" data-width="{{ s.risk }}"></div>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4">
+                <div class="empty">
+                  <div class="empty-icon">✅</div>
+                  No phishing URLs detected yet. All scans came back clean.
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="section" id="section-settings">
+      <div class="section-header">
+        <h3>⚙️ System Settings</h3>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;margin-bottom:20px;max-width:480px;">
+        <h4 style="color:#f1f5f9;margin-bottom:16px;font-size:15px;">🔑 Change Admin Password</h4>
+        <form method="POST" action="/admin/change-password">
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Current Password</label>
+            <input type="password" name="current_password" required
+              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 14px;color:#e2e8f0;font-size:14px;"/>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">New Password</label>
+            <input type="password" name="new_password" required
+              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 14px;color:#e2e8f0;font-size:14px;"/>
+          </div>
+          <button type="submit"
+            style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;">
+            Update Password
+          </button>
+        </form>
+      </div>
+      <div style="background:#1e293b;border:1px solid #7f1d1d;border-radius:12px;padding:24px;max-width:480px;">
+        <h4 style="color:#f87171;margin-bottom:8px;font-size:15px;">⚠️ Danger Zone</h4>
+        <p style="color:#64748b;font-size:13px;margin-bottom:16px;">These actions are irreversible. Proceed with caution.</p>
+        <form method="POST" action="/admin/clear-history"
+              onsubmit="return confirm('Delete ALL scan history? This cannot be undone.')">
+          <button type="submit" class="btn-del" style="font-size:14px;padding:10px 20px;">
+            🗑 Clear All Scan History
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const sectionTitles = {
+    dashboard: '📊 Dashboard',
+    users:     '👥 Users',
+    scans:     '🔍 All Scans',
+    phishing:  '🚨 Phishing Detections',
+    settings:  '⚙️ Settings',
+  };
+
+  function showSection(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('section-' + name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => {
+      if (n.getAttribute('onclick') === "showSection('" + name + "')") {
+        n.classList.add('active');
+      }
+    });
+    document.getElementById('topbar-title').textContent = sectionTitles[name];
+  }
+
+  function filterTable(input, tbodyId) {
+    const q = input.value.toLowerCase();
+    document.querySelectorAll('#' + tbodyId + ' tr').forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  document.querySelectorAll('.risk-bar[data-width]').forEach(bar => {
+    bar.style.width = bar.dataset.width + '%';
+  });
+
+  window.addEventListener('load', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash && document.getElementById('section-' + hash)) {
+      showSection(hash);
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>History — Phishing URL Detector</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="nav-brand">🛡 Phishing Detector</span>
+  <div class="nav-links">
+    <a href="/dashboard">Scan</a>
+    <a href="/history">History</a>
+    <a href="/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card">
+    <h2>📋 Scan History</h2>
+
+    {% if data %}
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>URL</th>
+            <th>Result</th>
+            <th>Risk Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td class="url-cell">{{ row[0] }}</td>
+            <td class="{% if 'PHISHING' in row[1] %}text-danger{% else %}text-safe{% endif %}">
+              {{ row[1] }}
+            </td>
+            <td>{{ row[2] }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+    {% else %}
+      <p class="empty-message">No scans yet. <a href="/dashboard">Scan a URL now.</a></p>
+    {% endif %}
+
+    <br>
+    <a href="/dashboard" class="btn btn-primary">🔍 Scan New URL</a>
+
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Result — Phishing URL Detector</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    /* Dynamic width set via CSS variable — avoids VS Code CSS linter errors */
+    :root {
+      --meter-width: {{ risk }}%;
+    }
+
+    /* ── New blocks: explainability / domain age / typosquat / SSL ── */
+    .reason-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 3px solid #f59e0b;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .reason-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+    }
+    .reason-box ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .reason-box li {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .domain-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .domain-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+    }
+    .risk-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+    .badge-high   { background: rgba(239,68,68,.15);  color: #f87171; border: 1px solid rgba(239,68,68,.35); }
+    .badge-medium { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.35); }
+    .badge-low    { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.35); }
+    .badge-unknown{ background: rgba(148,163,184,.15);color: #94a3b8; border: 1px solid rgba(148,163,184,.35); }
+
+    .typo-alert {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+      color: #fca5a5;
+      font-size: 14px;
+    }
+
+    /* SSL certificate inspection box */
+    .ssl-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .ssl-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+    }
+    .ssl-box ul {
+      margin: 6px 0 0 0;
+      padding-left: 20px;
+    }
+    .ssl-box li {
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    .ssl-row {
+      font-size: 14px;
+      margin-bottom: 3px;
+    }
+
+    /* ── Redirect chain box ── */
+    .redirect-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 3px solid #38bdf8;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .redirect-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+    }
+    .redirect-chain-list {
+      margin: 8px 0 0 0;
+      padding-left: 0;
+      list-style: none;
+      counter-reset: hop;
+    }
+    .redirect-chain-list li {
+      counter-increment: hop;
+      font-family: monospace;
+      font-size: 13px;
+      padding: 6px 0 6px 34px;
+      position: relative;
+      border-left: 1px dashed rgba(56, 189, 248, 0.4);
+      margin-left: 10px;
+      word-break: break-all;
+    }
+    .redirect-chain-list li::before {
+      content: counter(hop);
+      position: absolute;
+      left: -11px;
+      top: 4px;
+      background: #38bdf8;
+      color: #0f172a;
+      font-family: var(--font, inherit);
+      font-weight: 700;
+      font-size: 11px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .redirect-chain-list li:last-child {
+      border-left: 1px dashed transparent;
+      color: #7dd3fc;
+      font-weight: 600;
+    }
+    .redirect-final-tag {
+      display: inline-block;
+      margin-left: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: rgba(56, 189, 248, 0.15);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 1px 8px;
+      border-radius: 10px;
+      vertical-align: middle;
+    }
+    .redirect-warning {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #fbbf24;
+    }
+    .redirect-error {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #f87171;
+    }
+
+    /* ── Favicon visual-similarity box ── */
+    .favicon-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .favicon-box.clone-alert {
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .favicon-preview {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .favicon-preview img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
+    .favicon-text h3 {
+      margin: 0 0 6px 0;
+      font-size: 15px;
+    }
+    .favicon-text p {
+      margin: 0 0 4px 0;
+      font-size: 14px;
+    }
+    .clone-tag {
+      display: inline-block;
+      background: rgba(239,68,68,.15);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,.35);
+      border-radius: 10px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="nav-brand">🛡 Phishing Detector</span>
+  <div class="nav-links">
+    <a href="/dashboard">Scan</a>
+    <a href="/scan-qr">Scan QR</a>
+    <a href="/bulk-scan">Bulk Scan</a>
+    <a href="/history">History</a>
+    <a href="/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card result-card">
+
+    <h1>Detection Result</h1>
+
+    <div class="result-item">
+      <strong>URL:</strong>
+      <span class="url-text">{{ url }}</span>
+    </div>
+
+    <div class="result-item">
+      <strong>Status:</strong>
+      <span class="status {% if 'PHISHING' in result %}status-danger{% else %}status-safe{% endif %}">
+        {{ result }}
+      </span>
+    </div>
+
+    <div class="result-item">
+      <strong>Risk Score: {{ risk }}%</strong>
+      <div class="meter">
+        <div class="meter-fill {% if risk >= 70 %}meter-high{% elif risk >= 40 %}meter-medium{% else %}meter-low{% endif %}">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Redirect chain (shortener expansion) ── -->
+    {% if redirect_info and redirect_info.was_shortened %}
+    <div class="result-item">
+      <div class="redirect-box">
+        <h3>
+          🔗 Redirect Chain
+          <span class="redirect-final-tag">{{ redirect_info.hop_count }} hop{{ 's' if redirect_info.hop_count != 1 else '' }}</span>
+        </h3>
+        <ol class="redirect-chain-list">
+          {% for hop in redirect_info.chain %}
+            <li>
+              {{ hop }}
+              {% if loop.last %}<span class="redirect-final-tag">final destination — scanned</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+        {% if redirect_info.chain_truncated %}
+          <div class="redirect-warning">⚠️ Chain exceeded the maximum hop limit — showing the furthest resolved destination.</div>
+        {% endif %}
+        {% if redirect_info.error %}
+          <div class="redirect-error">⚠️ {{ redirect_info.error }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Explainability: why this URL was flagged ── -->
+    {% if reasons %}
+    <div class="result-item">
+      <div class="reason-box">
+        <h3>⚠️ Why this was flagged</h3>
+        <ul>
+          {% for r in reasons %}
+            <li>{{ r.explanation }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Domain age (WHOIS) ── -->
+    <div class="result-item">
+      <div class="domain-box">
+        <h3>🌐 Domain Info</h3>
+        {% if domain_info and domain_info.domain_age_days is not none %}
+          <p>Registered: {{ domain_info.creation_date }} ({{ domain_info.domain_age_days }} days ago)</p>
+          <p>Registrar: {{ domain_info.registrar or "Unknown" }}</p>
+          <span class="risk-badge badge-{{ domain_info.risk }}">{{ domain_info.risk }} risk</span>
+        {% else %}
+          <p>WHOIS data unavailable for this domain.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Typosquatting / brand impersonation ── -->
+    {% if typo_result and typo_result.is_typosquat %}
+    <div class="result-item">
+      <div class="typo-alert">
+        🚨 This domain closely resembles <strong>{{ typo_result.likely_target }}</strong>
+        (edit distance: {{ typo_result.edit_distance }}). Possible brand impersonation.
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── SSL certificate inspection ── -->
+    <div class="result-item">
+      <div class="ssl-box">
+        <h3>🔒 SSL Certificate</h3>
+        {% if ssl_info %}
+          {% if ssl_info.has_cert %}
+            <div class="ssl-row"><strong>Issuer:</strong> {{ ssl_info.issuer }}</div>
+            {% if ssl_info.days_until_expiry is not none %}
+              <div class="ssl-row">
+                <strong>Expiry:</strong>
+                {% if ssl_info.is_expired %}
+                  Expired {{ -ssl_info.days_until_expiry }} day(s) ago
+                {% else %}
+                  Valid for {{ ssl_info.days_until_expiry }} more day(s)
+                {% endif %}
+              </div>
+            {% endif %}
+            <div class="ssl-row"><strong>Self-signed:</strong> {{ "Yes" if ssl_info.is_self_signed else "No" }}</div>
+          {% else %}
+            <div class="ssl-row">No valid SSL certificate found on this domain.</div>
+          {% endif %}
+          <span class="risk-badge badge-{{ ssl_info.risk }}">{{ ssl_info.risk }} risk</span>
+          {% if ssl_info.notes %}
+            <ul>
+              {% for note in ssl_info.notes %}
+                <li>{{ note }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% else %}
+          <p>SSL data unavailable.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Favicon visual similarity (brand-clone detection) ── -->
+    {% if favicon_info and favicon_info.has_favicon %}
+    <div class="result-item">
+      <div class="favicon-box {% if favicon_info.is_visual_clone %}clone-alert{% endif %}">
+        <div class="favicon-preview">
+          <img src="{{ favicon_info.favicon_url }}" alt="Site favicon" onerror="this.style.display='none'">
+        </div>
+        <div class="favicon-text">
+          <h3>
+            🖼️ Favicon Visual Match
+            {% if favicon_info.is_visual_clone %}<span class="clone-tag">Likely Brand Clone</span>{% endif %}
+          </h3>
+          {% if favicon_info.matched_brand %}
+            <p>
+              Closest match: <strong>{{ favicon_info.matched_brand }}</strong>
+              (visual similarity distance: {{ favicon_info.hamming_distance }}/64)
+            </p>
+          {% endif %}
+          <p>{{ favicon_info.note }}</p>
+        </div>
+      </div>
+    </div>
+    {% elif favicon_info and favicon_info.note %}
+    <div class="result-item">
+      <div class="favicon-box">
+        <div class="favicon-text">
+          <h3>🖼️ Favicon Visual Match</h3>
+          <p>{{ favicon_info.note }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="result-item">
+      <strong>VirusTotal Report:</strong>
+      <p class="vt-result">{{ vt_result }}</p>
+    </div>
+
+    <div class="result-actions">
+      <a href="/dashboard" class="btn btn-primary">🔍 Scan Another URL</a>
+      <a href="/history"   class="btn btn-secondary">📋 View History</a>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

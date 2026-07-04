@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login — Phishing URL Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 44px 40px;
+      width: 380px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+    .login-header { text-align: center; margin-bottom: 32px; }
+    .login-header .shield { font-size: 44px; margin-bottom: 12px; }
+    .login-header h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+    .login-header p  { font-size: 13px; color: #64748b; }
+
+    .alert {
+      background: rgba(220,38,38,.12);
+      border: 1px solid rgba(220,38,38,.3);
+      color: #f87171;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px; font-weight: 600;
+      letter-spacing: .05em; text-transform: uppercase;
+      color: #64748b; margin-bottom: 7px;
+    }
+    .form-group input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: #e2e8f0;
+      font-size: 14px;
+      transition: border-color .2s;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    .form-group input::placeholder { color: #475569; }
+
+    .btn-login {
+      width: 100%;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background .2s;
+    }
+    .btn-login:hover { background: #1d4ed8; }
+
+    .back-link {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #475569;
+    }
+    .back-link a { color: #60a5fa; }
+    .back-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-header">
+      <div class="shield">🛡</div>
+      <h1>Admin Panel Login</h1>
+      <p>Restricted access — authorised personnel only</p>
+    </div>
+
+    {% if error %}
+      <div class="alert">⚠ {{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/admin/login">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username"
+               placeholder="admin username" required autocomplete="username"/>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password"
+               placeholder="••••••••" required autocomplete="current-password"/>
+      </div>
+      <button type="submit" class="btn-login">Login to Admin Panel</button>
+    </form>
+
+    <div class="back-link">
+      <a href="/login">← Back to user login</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bulk URL Scan — Phishing URL Detector</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="nav-brand">🛡 Phishing Detector</span>
+  <div class="nav-links">
+    <a href="/dashboard">Scan URL</a>
+    <a href="/scan-qr">Scan QR</a>
+    <a href="/bulk-scan">Bulk Scan</a>
+    <a href="/history">History</a>
+    <a href="/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card">
+    <h2>📋 Bulk URL Scan</h2>
+    <p>Upload a CSV of URLs (e.g. links pulled from a suspicious email) to scan all of them at once. Each URL goes through the full pipeline — ML model, WHOIS, SSL, typosquat, and VirusTotal checks.</p>
+    <p style="font-size:13px; opacity:0.7;">
+      Accepted formats: a CSV with a header column named <code>url</code>, <code>urls</code>, <code>link</code>, or <code>links</code> —
+      or a plain list of one URL per line with no header. Max 100 URLs per upload.
+    </p>
+
+    {% if error %}
+      <div class="alert-error" style="background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.35); color:#fca5a5; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="POST" action="/bulk-scan" enctype="multipart/form-data">
+
+      <div class="form-group">
+        <label for="csv_file">CSV File</label>
+        <input
+          type="file"
+          id="csv_file"
+          name="csv_file"
+          accept=".csv,text/csv"
+          required
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary">📋 Upload &amp; Scan All</button>
+
+    </form>
+  </div>
+
+</div>
+
+</body>
+</html>

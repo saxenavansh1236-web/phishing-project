@@ -1,0 +1,99 @@
+"""
+seed_db.py  --  Database seed script generated from users.db
+Recreates the 'users' and 'history' tables and populates them with
+the original data.
+
+Usage:
+    python seed_db.py
+"""
+
+import sqlite3
+
+
+# ── Schema ─────────────────────────────────────────────────────
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT    UNIQUE NOT NULL,
+    password TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS history (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT    NOT NULL,
+    url      TEXT    NOT NULL,
+    result   TEXT    NOT NULL,
+    risk     INTEGER NOT NULL
+);
+"""
+
+# ── Seed Data ──────────────────────────────────────────────────
+
+USERS = [
+    # (username, password)
+    # NOTE: passwords are stored plain-text here as found in the original DB.
+    # Run them through werkzeug.security.generate_password_hash before
+    # inserting into a production database.
+    ("saxenavansh1236@gmail.com", "Vansh@#123"),
+]
+
+HISTORY = [
+    # (username, url, result, risk)
+    ("saxenavansh1236@gmail.com", "www.google.com",                    "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "http://paypal-login-security.xyz",  "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "https://www.facebook.com",          "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "microsoft.com-security-update.ru",  "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "netflix.com",                       "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "://malicious-site.com",             "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "www.google.com",                    "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "http://paypal-login-security.xyz",  "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "bit.ly/secure-login-verify",        "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "https://vgu.ac.in",                 "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "http://paypal-login-security.xyz",  "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "www.google.com",                    "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://www.vgu.ac.in",             "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://vgu.ac.in",                 "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://vgu.ac.in",                 "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://vgu.ac.in",                 "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://vgu.ac.in",                 "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "netflix.com",                       "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "netfix.com",                        "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "apple-support.com",                 "PHISHING URL 🚨",  90),
+    ("saxenavansh1236@gmail.com", "whatsapp",                          "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+    ("saxenavansh1236@gmail.com", "https://dgu.ac/",                   "SAFE URL ✅",      10),
+]
+
+
+# ── Seed Function ──────────────────────────────────────────────
+
+def seed(db_path: str = "users.db") -> None:
+    conn = sqlite3.connect(db_path)
+    conn.executescript(SCHEMA)
+
+    conn.executemany(
+        "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
+        USERS,
+    )
+
+    conn.executemany(
+        "INSERT INTO history (username, url, result, risk) VALUES (?, ?, ?, ?)",
+        HISTORY,
+    )
+
+    conn.commit()
+
+    user_count    = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    history_count = conn.execute("SELECT COUNT(*) FROM history").fetchone()[0]
+    conn.close()
+
+    print(f"✅ Seeded {user_count} user(s) and {history_count} history record(s) into '{db_path}'.")
+
+
+if __name__ == "__main__":
+    seed()

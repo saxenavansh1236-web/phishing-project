@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bulk Scan Results — Phishing URL Detector</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    .summary-row {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .summary-pill {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 14px;
+    }
+    .summary-pill strong { font-size: 20px; display: block; }
+
+    .batch-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    .batch-table th, .batch-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .batch-table th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      opacity: 0.7;
+    }
+    .row-url {
+      max-width: 380px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .pill-danger { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.35); }
+    .pill-safe   { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.35); }
+
+    .truncated-note {
+      background: rgba(245,158,11,.1);
+      border: 1px solid rgba(245,158,11,.35);
+      color: #fbbf24;
+      padding: 10px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    /* Redirect column */
+    .row-redirect {
+      max-width: 260px;
+      font-family: monospace;
+      font-size: 12.5px;
+    }
+    .redirect-hop-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(56, 189, 248, 0.12);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 10px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+    .redirect-final-url {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      opacity: 0.85;
+    }
+    .redirect-none {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="nav-brand">🛡 Phishing Detector</span>
+  <div class="nav-links">
+    <a href="/dashboard">Scan URL</a>
+    <a href="/scan-qr">Scan QR</a>
+    <a href="/bulk-scan">Bulk Scan</a>
+    <a href="/history">History</a>
+    <a href="/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card">
+    <h1>📋 Bulk Scan Results</h1>
+
+    {% if truncated %}
+      <div class="truncated-note">
+        ⚠️ Your CSV had more than 100 URLs — only the first 100 were scanned.
+      </div>
+    {% endif %}
+
+    <div class="summary-row">
+      <div class="summary-pill"><strong>{{ total }}</strong>Total Scanned</div>
+      <div class="summary-pill"><strong style="color:#f87171;">{{ phishing_count }}</strong>Phishing Detected</div>
+      <div class="summary-pill"><strong style="color:#4ade80;">{{ safe_count }}</strong>Safe</div>
+    </div>
+
+    <table class="batch-table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Status</th>
+          <th>Risk</th>
+          <th>Redirect</th>
+          <th>SSL</th>
+          <th>Domain Age</th>
+          <th>Typosquat</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in batch_results %}
+        <tr>
+          <td class="row-url" title="{{ r.url }}">{{ r.url }}</td>
+          <td>
+            <span class="pill {% if 'PHISHING' in r.result %}pill-danger{% else %}pill-safe{% endif %}">
+              {{ "PHISHING" if "PHISHING" in r.result else "SAFE" }}
+            </span>
+          </td>
+          <td>{{ r.risk }}%</td>
+          <td class="row-redirect">
+            {% if r.redirect_info and r.redirect_info.was_shortened %}
+              <span class="redirect-hop-pill">🔗 {{ r.redirect_info.hop_count }} hop{{ 's' if r.redirect_info.hop_count != 1 else '' }}</span>
+              <span class="redirect-final-url" title="{{ r.redirect_info.final_url }}">→ {{ r.redirect_info.final_url }}</span>
+              {% if r.redirect_info.error %}
+                <span class="redirect-final-url" style="color:#f87171;" title="{{ r.redirect_info.error }}">⚠️ {{ r.redirect_info.error }}</span>
+              {% endif %}
+            {% else %}
+              <span class="redirect-none">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.ssl_info and r.ssl_info.has_cert %}
+              {{ r.ssl_info.risk }}
+            {% else %}
+              no cert
+            {% endif %}
+          </td>
+          <td>
+            {% if r.domain_info and r.domain_info.domain_age_days is not none %}
+              {{ r.domain_info.domain_age_days }}d ({{ r.domain_info.risk }})
+            {% else %}
+              unknown
+            {% endif %}
+          </td>
+          <td>
+            {% if r.typo_result and r.typo_result.is_typosquat %}
+              ⚠️ {{ r.typo_result.likely_target }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="result-actions" style="margin-top:24px;">
+      <a href="/bulk-scan" class="btn btn-primary">📋 Scan Another Batch</a>
+      <a href="/history"   class="btn btn-secondary">📋 View History</a>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

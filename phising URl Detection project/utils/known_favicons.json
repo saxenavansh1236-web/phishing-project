@@ -1,0 +1,110 @@
+{
+  "PayPal": {
+    "phash": "b865c79ecac39c41",
+    "domains": [
+      "paypal.com",
+      "www.paypal.com"
+    ],
+    "source_favicon": "https://www.paypalobjects.com/marketing/web/icons/monogram/pp64.png"
+  },
+  "Google": {
+    "phash": "c4b4114b4fb59e96",
+    "domains": [
+      "google.com",
+      "www.google.com",
+      "accounts.google.com"
+    ],
+    "source_favicon": "https://www.google.com/favicon.ico"
+  },
+  "Microsoft": {
+    "phash": "b34cb3b34c4cb391",
+    "domains": [
+      "microsoft.com",
+      "www.microsoft.com",
+      "login.microsoftonline.com"
+    ],
+    "source_favicon": "https://www.microsoft.com/favicon.ico?v2"
+  },
+  "Amazon": {
+    "phash": "857554db853554cb",
+    "domains": [
+      "amazon.com",
+      "www.amazon.com"
+    ],
+    "source_favicon": "https://www.amazon.com/favicon.ico"
+  },
+  "Apple": {
+    "phash": "a4c6cf61389b65cc",
+    "domains": [
+      "apple.com",
+      "www.apple.com",
+      "appleid.apple.com"
+    ],
+    "source_favicon": "https://www.apple.com/favicon.ico"
+  },
+  "Facebook": {
+    "phash": "8c3334674f6c1e93",
+    "domains": [
+      "facebook.com",
+      "www.facebook.com"
+    ],
+    "source_favicon": "https://static.xx.fbcdn.net/rsrc.php/y1/r/ay1hV6OlegS.ico"
+  },
+  "Instagram": {
+    "phash": "d4364a2f6b3c3c32",
+    "domains": [
+      "instagram.com",
+      "www.instagram.com"
+    ],
+    "source_favicon": "https://static.cdninstagram.com/rsrc.php/yr/r/rzWiSjZRxk5.webp"
+  },
+  "Netflix": {
+    "phash": "c6cc32d932d932d9",
+    "domains": [
+      "netflix.com",
+      "www.netflix.com"
+    ],
+    "source_favicon": "https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2023.ico"
+  },
+  "LinkedIn": {
+    "phash": "ee6b39849c9ac465",
+    "domains": [
+      "linkedin.com",
+      "www.linkedin.com"
+    ],
+    "source_favicon": "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca"
+  },
+  "State Bank of India": {
+    "phash": "f966b5c9814c8733",
+    "domains": [
+      "onlinesbi.sbi",
+      "www.onlinesbi.sbi",
+      "sbi.co.in"
+    ],
+    "source_favicon": "https://www.onlinesbi.sbi/favicon.ico"
+  },
+  "ICICI Bank": {
+    "phash": "c0271ebc6dd831e3",
+    "domains": [
+      "icicibank.com",
+      "www.icicibank.com"
+    ],
+    "source_favicon": "https://www.icicibank.com/favicon.ico"
+  },
+  "Axis Bank": {
+    "phash": "baf2cf1d904ce419",
+    "domains": [
+      "axisbank.com",
+      "www.axisbank.com"
+    ],
+    "source_favicon": "https://www.axisbank.com/assets/images/favicon.ico"
+  },
+  "Dropbox": {
+    "phash": "d2e3691c37398cc6",
+    "domains": [
+      "dropbox.com",
+      "www.dropbox.com"
+    ],
+    "source_favicon": "https://cfl.dropboxstatic.com/static/metaserver/static/images/favicon.ico"
+  }
+}

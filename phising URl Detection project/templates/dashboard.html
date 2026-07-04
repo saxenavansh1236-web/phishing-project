@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — Phishing URL Detector</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="nav-brand">🛡 Phishing Detector</span>
+  <div class="nav-links">
+    <a href="/dashboard">Scan</a>
+    <a href="/history">History</a>
+    <a href="/logout">Logout</a>
+    <a href="/bulk-scan">Bulk Scan</a>
+    <a href="/scan-qr">Scan QR</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card">
+    <h2>🔍 Scan a URL</h2>
+    <p>Enter any URL below to check if it is a phishing site.</p>
+
+    <form method="POST" action="/dashboard">
+
+      <div class="form-group">
+        <label for="url">URL to Scan</label>
+        <input
+          type="text"
+          id="url"
+          name="url"
+          placeholder="https://example.com"
+          required
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary">🔎 Scan URL</button>
+
+    </form>
+  </div>
+
+</div>
+
+</body>
+</html>
