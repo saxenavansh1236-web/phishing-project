@@ -1,4 +1,13 @@
 flask
-pandas
+gunicorn
+python-dotenv
+requests
 scikit-learn
 joblib
+pandas
+python-whois
+python-Levenshtein
+cryptography
+opencv-python-headless
+Pillow
+imagehash
