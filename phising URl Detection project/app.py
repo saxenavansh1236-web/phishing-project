@@ -24,7 +24,7 @@ app = Flask(__name__)
 app.secret_key = "secret123"
 
 model = joblib.load("phishing_model.pkl")
-init_db()
+
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -60,6 +60,7 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    init_db()
 
 
 def get_db():
