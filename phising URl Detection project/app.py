@@ -21,7 +21,7 @@ from utils.alert import send_alert_if_high_risk
 from utils.favicon_check import check_favicon_similarity
 
 app = Flask(__name__)
-app.secret_key = "secret123"
+app.secret_key = os.environ.get("SECRET_KEY", "dev-only-fallback-change-me")
 
 model = joblib.load("phishing_model.pkl")
 
@@ -51,16 +51,24 @@ def init_db():
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS logins (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            username   TEXT    NOT NULL,
-            ip_address TEXT,
-            user_agent TEXT,
-            timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            username      TEXT    NOT NULL,
+            ip_address    TEXT,
+            user_agent    TEXT,
+            logged_in_at  DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
     conn.close()
-    init_db()
+
+
+# IMPORTANT: this must run unconditionally at import time, because Render
+# runs this app via gunicorn ("gunicorn app:app"), which imports this file
+# as a module and NEVER executes the `if __name__ == "__main__":` block
+# below. If init_db() is only called inside that block, the database
+# tables never get created in production and every query fails with
+# "no such table".
+init_db()
 
 
 def get_db():
@@ -507,5 +515,4 @@ def admin_logout():
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True)
