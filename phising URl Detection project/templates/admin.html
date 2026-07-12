@@ -38,6 +38,7 @@
     .stat-card.green::before  { background: #22c55e; }
     .stat-card.yellow::before { background: #f59e0b; }
     .stat-card.purple::before { background: #8b5cf6; }
+    .stat-card.teal::before   { background: #14b8a6; }
     .stat-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
     .stat-value { font-size: 36px; font-weight: 800; color: #f1f5f9; line-height: 1; }
     .stat-sub   { font-size: 12px; color: #64748b; margin-top: 6px; }
@@ -58,6 +59,7 @@
     .pill-admin   { background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.3); }
     .pill-user    { background: rgba(59,130,246,.15);  color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
     .url-mono { font-family: monospace; font-size: 12px; color: #93c5fd; word-break: break-all; max-width: 260px; }
+    .ua-mono { font-family: monospace; font-size: 11px; color: #94a3b8; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
     .risk-bar-wrap { width: 80px; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 6px; }
     .risk-bar    { height: 100%; border-radius: 3px; }
     .risk-high   { background: #ef4444; }
@@ -102,6 +104,9 @@
     <div class="nav-section-label">Management</div>
     <div class="nav-item" onclick="showSection('users')">
       <span class="icon">👥</span><span>Users</span>
+    </div>
+    <div class="nav-item" onclick="showSection('logins')">
+      <span class="icon">🔑</span><span>Login Activity</span>
     </div>
     <div class="nav-item" onclick="showSection('scans')">
       <span class="icon">🔍</span><span>All Scans</span>
@@ -148,6 +153,12 @@
           <div class="stat-label">Total Users</div>
           <div class="stat-value">{{ total_users }}</div>
           <div class="stat-sub">registered accounts</div>
+        </div>
+        <div class="stat-card teal">
+          <div class="stat-icon">🔑</div>
+          <div class="stat-label">Total Logins</div>
+          <div class="stat-value">{{ total_logins }}</div>
+          <div class="stat-sub">all time</div>
         </div>
         <div class="stat-card red">
           <div class="stat-icon">🚨</div>
@@ -200,6 +211,24 @@
         <div class="empty"><div class="empty-icon">📭</div>No scans yet.</div>
         {% endfor %}
       </div>
+
+      <div class="section-header" style="margin-top:28px;">
+        <h3>🔑 Recent Logins</h3>
+      </div>
+      <div class="activity-feed">
+        {% for l in logins[:8] %}
+        <div class="activity-item">
+          <div class="activity-icon">🔑</div>
+          <div class="activity-text">
+            <strong>{{ l.username }}</strong> logged in from
+            <span class="url-mono">{{ l.ip_address or 'unknown IP' }}</span>
+          </div>
+          <div class="activity-time">{{ l.logged_in_at }}</div>
+        </div>
+        {% else %}
+        <div class="empty"><div class="empty-icon">📭</div>No logins recorded yet.</div>
+        {% endfor %}
+      </div>
     </div>
 
     <!-- USERS -->
@@ -213,7 +242,7 @@
           <thead>
             <tr>
               <th>#</th><th>Username</th><th>Role</th>
-              <th>Total Scans</th><th>Phishing Found</th><th>Actions</th>
+              <th>Total Scans</th><th>Phishing Found</th><th>Logins</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="users-tbody">
@@ -236,6 +265,7 @@
                   <span style="color:#475569">0</span>
                 {% endif %}
               </td>
+              <td style="color:#94a3b8">{{ u.login_count }}</td>
               <td>
                 {% if u.username != admin_user %}
                 <form method="POST" action="/admin/delete-user" style="display:inline"
@@ -249,7 +279,37 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="empty">No users found.</td></tr>
+            <tr><td colspan="7" class="empty">No users found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LOGIN ACTIVITY -->
+    <div class="section" id="section-logins">
+      <div class="section-header">
+        <h3>🔑 Login Activity</h3>
+        <input class="search-bar" type="text" placeholder="🔍 Search logins…" oninput="filterTable(this,'logins-tbody')"/>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Username</th><th>IP Address</th><th>User Agent</th><th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="logins-tbody">
+            {% for l in logins %}
+            <tr>
+              <td style="color:#475569">{{ loop.index }}</td>
+              <td style="font-weight:600;color:#f1f5f9">{{ l.username }}</td>
+              <td style="color:#93c5fd;font-family:monospace;">{{ l.ip_address or '—' }}</td>
+              <td><span class="ua-mono">{{ l.user_agent or '—' }}</span></td>
+              <td style="color:#64748b;font-size:12px;">{{ l.logged_in_at }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="empty">No logins recorded yet.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -386,9 +446,15 @@
         <h4 style="color:#f87171;margin-bottom:8px;font-size:15px;">⚠️ Danger Zone</h4>
         <p style="color:#64748b;font-size:13px;margin-bottom:16px;">These actions are irreversible. Proceed with caution.</p>
         <form method="POST" action="/admin/clear-history"
-              onsubmit="return confirm('Delete ALL scan history? This cannot be undone.')">
+              onsubmit="return confirm('Delete ALL scan history? This cannot be undone.')" style="margin-bottom:12px;">
           <button type="submit" class="btn-del" style="font-size:14px;padding:10px 20px;">
             🗑 Clear All Scan History
+          </button>
+        </form>
+        <form method="POST" action="/admin/clear-logins"
+              onsubmit="return confirm('Delete ALL login history? This cannot be undone.')">
+          <button type="submit" class="btn-del" style="font-size:14px;padding:10px 20px;">
+            🗑 Clear All Login History
           </button>
         </form>
       </div>
@@ -401,6 +467,7 @@
   const sectionTitles = {
     dashboard: '📊 Dashboard',
     users:     '👥 Users',
+    logins:    '🔑 Login Activity',
     scans:     '🔍 All Scans',
     phishing:  '🚨 Phishing Detections',
     settings:  '⚙️ Settings',
