@@ -450,8 +450,8 @@ def get_admin_stats():
             "SELECT COUNT(*) AS cnt FROM history WHERE username=?", (uname,)
         ).fetchone()["cnt"]
         phish_count = execute(conn, 
-            "SELECT COUNT(*) AS cnt FROM history WHERE username=? AND result LIKE '%PHISHING%'",
-            (uname,),
+            "SELECT COUNT(*) AS cnt FROM history WHERE username=? AND result LIKE ?",
+            (uname, "%PHISHING%"),
         ).fetchone()["cnt"]
         login_count = execute(conn, 
             "SELECT COUNT(*) AS cnt FROM logins WHERE username=?", (uname,)
