@@ -24,6 +24,7 @@ app = Flask(__name__)
 app.secret_key = "secret123"
 
 model = joblib.load("phishing_model.pkl")
+init_db()
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -50,11 +51,11 @@ def init_db():
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS logins (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            username     TEXT    NOT NULL,
-            ip_address   TEXT,
-            user_agent   TEXT,
-            logged_in_at TEXT DEFAULT (datetime('now', 'localtime'))
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT    NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
