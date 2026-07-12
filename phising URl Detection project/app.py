@@ -16,9 +16,9 @@ from utils.typosquat_check import check_typosquatting
 from utils.ssl_check import check_ssl_certificate
 from utils.qr_check import decode_qr_from_filestorage, looks_like_url
 from utils.bulk_check import parse_urls_from_csv
-from utils.redirect_check import trace_redirect_chain          # NEW
-from utils.alert import send_alert_if_high_risk                # NEW
-from utils.favicon_check import check_favicon_similarity       # NEW
+from utils.redirect_check import trace_redirect_chain
+from utils.alert import send_alert_if_high_risk
+from utils.favicon_check import check_favicon_similarity
 
 app = Flask(__name__)
 app.secret_key = "secret123"
@@ -46,6 +46,15 @@ def init_db():
             url      TEXT    NOT NULL,
             result   TEXT    NOT NULL,
             risk     INTEGER NOT NULL
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS logins (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            username     TEXT    NOT NULL,
+            ip_address   TEXT,
+            user_agent   TEXT,
+            logged_in_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
     """)
     conn.commit()
@@ -104,7 +113,7 @@ def run_full_scan(url, username):
     typo_result = check_typosquatting(scan_target)
     ssl_info = check_ssl_certificate(scan_target)
     vt_result = check_url_virustotal(scan_target)
-    favicon_info = check_favicon_similarity(scan_target)   # NEW
+    favicon_info = check_favicon_similarity(scan_target)
 
     # A confirmed visual clone (a known brand's favicon on a domain that
     # ISN'T that brand's real domain) is a very strong phishing signal —
@@ -130,8 +139,8 @@ def run_full_scan(url, username):
         "domain_info": domain_info,
         "typo_result": typo_result,
         "ssl_info": ssl_info,
-        "redirect_info": redirect_info,   # chain + final destination for the template
-        "favicon_info": favicon_info,     # NEW — visual brand-clone detection for the template
+        "redirect_info": redirect_info,
+        "favicon_info": favicon_info,
     }
 
     send_alert_if_high_risk(scan_data, username)  # best-effort, never raises
@@ -180,10 +189,19 @@ def login():
             "SELECT * FROM users WHERE username=? AND password=?",
             (username, password),
         ).fetchone()
-        conn.close()
+
         if user:
             session["user"] = username
+            # Log this login for the admin panel's "Login Activity" view
+            conn.execute(
+                "INSERT INTO logins(username, ip_address, user_agent) VALUES (?, ?, ?)",
+                (username, request.remote_addr, request.headers.get("User-Agent", "")),
+            )
+            conn.commit()
+            conn.close()
             return redirect("/dashboard")
+
+        conn.close()
         error = "Invalid username or password."
     return render_template("login.html", error=error)
 
@@ -303,6 +321,18 @@ def admin_required(f):
     return decorated
 
 
+def get_login_activity(limit=50):
+    """Most recent user logins, newest first — feeds the admin panel."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT username, ip_address, user_agent, logged_in_at "
+        "FROM logins ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_admin_stats():
     conn = get_db()
 
@@ -317,10 +347,14 @@ def get_admin_stats():
             "SELECT COUNT(*) FROM history WHERE username=? AND result LIKE '%PHISHING%'",
             (uname,),
         ).fetchone()[0]
+        login_count = conn.execute(
+            "SELECT COUNT(*) FROM logins WHERE username=?", (uname,)
+        ).fetchone()[0]
         users.append({
             "username": uname,
             "scan_count": scan_count,
             "phish_count": phish_count,
+            "login_count": login_count,
         })
 
     all_scans_raw = conn.execute(
@@ -347,6 +381,8 @@ def get_admin_stats():
     safe_count = total_scans - phishing_count
     detection_rate = round((phishing_count / total_scans * 100), 1) if total_scans else 0
 
+    total_logins = conn.execute("SELECT COUNT(*) FROM logins").fetchone()[0]
+
     conn.close()
 
     return {
@@ -359,6 +395,7 @@ def get_admin_stats():
         "phishing_count": phishing_count,
         "safe_count": safe_count,
         "detection_rate": detection_rate,
+        "total_logins": total_logins,
         "admin_user": ADMIN_USERNAME,
     }
 
@@ -380,7 +417,13 @@ def admin_login():
 @admin_required
 def admin_panel():
     stats = get_admin_stats()
-    return render_template("admin.html", message=request.args.get("msg"), **stats)
+    logins = get_login_activity()
+    return render_template(
+        "admin.html",
+        message=request.args.get("msg"),
+        logins=logins,
+        **stats
+    )
 
 
 @app.route("/admin/delete-user", methods=["POST"])
@@ -391,6 +434,7 @@ def admin_delete_user():
         conn = get_db()
         conn.execute("DELETE FROM users   WHERE username=?", (username,))
         conn.execute("DELETE FROM history WHERE username=?", (username,))
+        conn.execute("DELETE FROM logins  WHERE username=?", (username,))
         conn.commit()
         conn.close()
     return redirect("/admin?msg=User+" + username + "+deleted.")
@@ -418,6 +462,16 @@ def admin_clear_history():
     return redirect("/admin?msg=All+scan+history+cleared.")
 
 
+@app.route("/admin/clear-logins", methods=["POST"])
+@admin_required
+def admin_clear_logins():
+    conn = get_db()
+    conn.execute("DELETE FROM logins")
+    conn.commit()
+    conn.close()
+    return redirect("/admin?msg=Login+history+cleared.")
+
+
 @app.route("/admin/change-password", methods=["POST"])
 @admin_required
 def admin_change_password():
@@ -426,10 +480,20 @@ def admin_change_password():
     new_pw = request.form.get("new_password", "")
     if current != ADMIN_PASSWORD:
         stats = get_admin_stats()
-        return render_template("admin.html", error="Current password is incorrect.", **stats)
+        return render_template(
+            "admin.html",
+            error="Current password is incorrect.",
+            logins=get_login_activity(),
+            **stats
+        )
     if len(new_pw) < 6:
         stats = get_admin_stats()
-        return render_template("admin.html", error="New password must be at least 6 characters.", **stats)
+        return render_template(
+            "admin.html",
+            error="New password must be at least 6 characters.",
+            logins=get_login_activity(),
+            **stats
+        )
     ADMIN_PASSWORD = new_pw
     return redirect("/admin?msg=Password+updated+successfully.")
 
