@@ -24,7 +24,7 @@ Beyond basic classification, the system performs deep contextual analysis on eve
 - 🔐 **Secure Credentials** — Environment variables used to protect sensitive data
 
 ### Advanced Threat Analysis
-- 🧠 **Explainable Predictions** — Every flagged URL shows the specific reasons it was classified as phishing (URL length, hyphens, missing HTTPS, suspicious dot count, etc.), not just a verdict
+- 🧠 **Explainable Predictions** — Every flagged URL shows the specific reasons it was classified as phishing (URL length, domain hyphen count, HTTPS scheme, domain dot/subdomain depth, `@` symbol presence, etc.), not just a verdict. Structural checks (hyphen count, dot count) are evaluated against the **parsed domain (`netloc`) only** — never the full URL string — so a hyphenated path or query string (e.g. a Google Meet code like `meet.google.com/tbj-dudh-fex`) is never mistaken for a suspicious domain. The HTTPS check reads the actual URL **scheme** (`urlparse(url).scheme`) rather than searching for the substring `"https"` anywhere in the URL, so a plain-`http://` link with the word "https" somewhere in its path can't slip through as secure
 - 🌐 **WHOIS Domain Age Lookup** — Checks how recently a domain was registered; freshly registered domains (under 30 days) are flagged as high risk, since this is one of the strongest real-world phishing signals
 - 🎭 **Typosquatting Detection** — Compares scanned domains against well-known brands (PayPal, Google, Amazon, major banks, etc.) using edit-distance matching to catch impersonation attempts like `paypa1.com` or `g00gle.com`
 - 🔒 **SSL Certificate Inspection** — Flags missing certificates, expired certificates, self-signed certificates, and identifies the issuing CA
@@ -81,7 +81,8 @@ phishing-url-detection/
 │   └── admin.html                # Admin dashboard
 │
 ├── utils/
-│   ├── feature.py                # URL feature extraction
+│   ├── feature.py                # URL feature extraction (domain-scoped — see "Feature
+│   │                             #   Extraction Details" below)
 │   ├── vt_api.py                 # VirusTotal API integration
 │   ├── explain.py                # Explainable prediction reasoning
 │   ├── whois_check.py            # Domain age / WHOIS lookup
@@ -149,12 +150,18 @@ python scripts/build_favicon_db.py
 ```
 Add or remove brands by editing the `BRANDS` list at the top of that script. The app runs fine without this step — the favicon check simply reports "no known-brand database found" until it's populated.
 
-### 6. Run the application
+### 6. Train (or re-train) the model
+```bash
+python model.py
+```
+**Always re-run this after changing `utils/feature.py`.** The model is trained on whatever feature-extraction logic exists at training time — if the live app's feature extraction changes shape or meaning (e.g. domain-only vs whole-URL counts) without retraining, `phishing_model.pkl` will be scoring features it was never actually trained on, which silently degrades accuracy instead of raising an error.
+
+### 7. Run the application
 ```bash
 python app.py
 ```
 
-### 7. Open in browser
+### 8. Open in browser
 ```
 http://127.0.0.1:5000
 ```
@@ -185,7 +192,7 @@ URL submitted (typed, decoded from QR, or read from CSV)
 Redirect Chain Tracing — expand shorteners, follow every hop
       (utils/redirect_check.py) → resolves to the FINAL destination URL
       ↓
-Feature Extraction on the final URL (utils/feature.py)
+Feature Extraction on the final URL, domain-scoped (utils/feature.py)
       ↓
 ML Model Prediction (phishing_model.pkl)
       ↓
@@ -211,6 +218,41 @@ Webhook alert fired if risk crosses threshold (utils/alert.py)
 
 ### Why the final URL, not the typed URL?
 Every check after redirect tracing — the ML model, WHOIS, typosquat, SSL, favicon, and VirusTotal — runs against the **resolved final destination**, not whatever the user originally pasted in. This matters because a phishing link is very often hidden behind a URL shortener or a chain of redirects specifically to defeat exactly these kinds of checks; scanning the shortener link itself would tell you almost nothing.
+
+### Feature Extraction Details (`utils/feature.py`)
+
+All structural features are computed from the **parsed URL**, not the raw string, to avoid misreading the path/query as if it were the domain:
+
+```python
+from urllib.parse import urlparse
+
+def extract_features(url):
+    parsed = urlparse(url)
+    domain = parsed.netloc  # e.g. "meet.google.com" — excludes path/query
+
+    features = []
+
+    # URL Length — kept as the full URL; overall length is a legitimate whole-URL signal
+    features.append(len(url))
+
+    # Has @ symbol — kept as full URL; an @ anywhere is a classic destination-hiding trick
+    features.append(1 if '@' in url else 0)
+
+    # Count dots — DOMAIN ONLY; subdomain depth (e.g. paypal.com.verify-login.xyz)
+    # is the real signal, not dots that happen to sit in a path or query string
+    features.append(domain.count('.'))
+
+    # HTTPS check — actual scheme, not a substring search over the whole URL
+    features.append(1 if parsed.scheme == 'https' else 0)
+
+    # Has hyphen — DOMAIN ONLY; a hyphenated path (e.g. a Google Meet room code
+    # like /tbj-dudh-fex) is completely unrelated to domain-based brand mimicry
+    features.append(1 if '-' in domain else 0)
+
+    return features
+```
+
+**Why this matters in practice:** the earlier, whole-URL version of this function flagged legitimate links like `https://meet.google.com/tbj-dudh-fex` as high-risk (90%) purely because of hyphens in the Google Meet room code — a false positive with only one contributing signal. Scoping the hyphen/dot checks to `domain` instead of the full `url` string closes that gap without needing a hard-coded allow-list of "trusted" domains, which would itself be a soft spot for attackers to target (e.g. via open redirects or subdomain takeovers on an allow-listed domain).
 
 ### Scanning Methods
 - **Typed URL** → `/dashboard` → runs the full pipeline above
@@ -252,6 +294,15 @@ pip install -r requirements.txt
 - Redirect-chain tracing is capped at 8 hops and detects redirect loops to prevent a malicious link from hanging a scan
 - Webhook alerting is best-effort: a broken or unreachable webhook will never cause a scan to fail
 - The favicon similarity check only flags a **visual clone** when a close match to a known brand is found on a domain that ISN'T that brand's own — it never penalizes a site simply for having no matching favicon in the database
+- Structural features (hyphen count, dot count) are evaluated **domain-only**, not on the full URL string — see "Feature Extraction Details" above. This was a fixed false-positive bug (Google Meet links, and any legitimate URL with a hyphenated/dotted path or query string, were previously miscategorized as suspicious)
+
+---
+
+## 🐞 Known Issues / Fix Log
+
+- **Fixed:** `extract_features()` previously counted hyphens and dots across the entire raw URL (including path and query string), causing legitimate links with hyphenated paths — such as Google Meet room codes (`meet.google.com/tbj-dudh-fex`) — to be flagged as high-risk phishing based on a single misfiring signal. Structural checks are now scoped to the parsed domain (`urlparse(url).netloc`) only.
+- **Fixed:** The HTTPS check previously searched for the substring `"https"` anywhere in the URL rather than reading the actual scheme, which could misclassify a plain `http://` URL containing the word "https" in its path. It now reads `urlparse(url).scheme` directly.
+- **Note:** `phishing_model.pkl` must be retrained (`python model.py`) any time `utils/feature.py` changes, since the model's learned weights are tied to the exact feature definitions used at training time.
 
 ---
 
