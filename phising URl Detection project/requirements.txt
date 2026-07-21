@@ -2,7 +2,7 @@ flask
 gunicorn
 python-dotenv
 requests
-scikit-learn
+scikit-learn==1.8.0
 joblib
 pandas
 python-whois
