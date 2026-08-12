@@ -5,16 +5,17 @@ vt_api.py  --  VirusTotal URL scanning helper
 import base64
 import time
 import requests
+import os
 
-VT_API_KEY     = "f25a4b987d25e26457ba53aa87d7f6588c808eaf9753e5e127ae95d388cf5ccf"   # <- paste your key here
-VT_SCAN_URL    = "https://www.virustotal.com/api/v3/urls"
-VT_REPORT_URL  = "https://www.virustotal.com/api/v3/urls/{}"
+VT_API_KEY = os.environ.get("VT_API_KEY", "")
+VT_SCAN_URL   = "https://www.virustotal.com/api/v3/urls"
+VT_REPORT_URL = "https://www.virustotal.com/api/v3/urls/{}"
 REQUEST_TIMEOUT = 15
 
 
 def scan_url_virustotal(url: str) -> str:
-    if not VT_API_KEY or VT_API_KEY == "YOUR_VIRUSTOTAL_API_KEY":
-        return "VirusTotal: API key not configured."
+    if not VT_API_KEY:
+        return "VirusTotal: API key not configured. Set VT_API_KEY in your .env file."
 
     headers = {"x-apikey": VT_API_KEY}
 
@@ -33,7 +34,7 @@ def scan_url_virustotal(url: str) -> str:
                 f"(HTTP {scan_resp.status_code}). Check your API key."
             )
 
-        # Step 2 — FIX: compute the correct URL ID
+        # Step 2 — compute the correct URL ID
         # VirusTotal v3 uses base64url(url) WITHOUT padding, not sha256
         url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
 
