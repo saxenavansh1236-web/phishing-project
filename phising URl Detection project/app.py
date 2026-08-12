@@ -8,7 +8,7 @@ import joblib
 import os
 from functools import wraps
 
-from utils.feature import extract_features
+from utils.features import extract_features
 from utils.vt_api import check_url_virustotal
 from utils.explain import explain_prediction
 from utils.whois_check import get_domain_age_info
@@ -19,6 +19,7 @@ from utils.bulk_check import parse_urls_from_csv
 from utils.redirect_check import trace_redirect_chain
 from utils.alert import send_alert_if_high_risk
 from utils.favicon_check import check_favicon_similarity
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-fallback-change-me")
