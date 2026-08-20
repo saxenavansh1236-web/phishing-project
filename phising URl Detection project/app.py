@@ -31,67 +31,31 @@ ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 # ── DATABASE SETUP ─────────────────────────────────────────────
-#
-# Render's free-tier web service filesystem is EPHEMERAL — any file
-# written locally (like a SQLite users.db) gets wiped on every restart,
-# redeploy, or free-tier spin-down after inactivity. To keep registered
-# users and scan history permanently, we use Render's free PostgreSQL
-# database instead whenever a DATABASE_URL environment variable is set.
-#
-# Locally (on your own machine, with no DATABASE_URL set), the app
-# automatically falls back to a plain SQLite file — so local development
-# still works exactly as before, with zero setup needed.
+# Plain SQLite database.
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
-USE_POSTGRES = bool(DATABASE_URL)
-
-if USE_POSTGRES:
-    import psycopg2
-    import psycopg2.extras
-else:
-    DB_PATH = os.environ.get("DB_PATH", "users.db")
+DB_PATH = os.environ.get("DB_PATH", "users.db")
 
 
 def get_db():
-    """Returns a live database connection. Works transparently whether
-    we're on Postgres (production) or SQLite (local dev)."""
-    if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-        return conn
-    else:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-
-def q(sql_sqlite, sql_postgres):
-    """Pick the right SQL dialect for the current backend.
-    SQLite uses '?' placeholders and AUTOINCREMENT; Postgres uses
-    '%s' placeholders and SERIAL — this small helper keeps every
-    query written once, in both dialects, side by side."""
-    return sql_postgres if USE_POSTGRES else sql_sqlite
+    """Returns a live SQLite database connection."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def init_db():
     conn = get_db()
     c = conn.cursor()
-    c.execute(q(
+    c.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT    UNIQUE NOT NULL,
             password TEXT    NOT NULL
         )
-        """,
         """
-        CREATE TABLE IF NOT EXISTS users (
-            id       SERIAL PRIMARY KEY,
-            username TEXT   UNIQUE NOT NULL,
-            password TEXT   NOT NULL
-        )
-        """
-    ))
-    c.execute(q(
+    )
+    c.execute(
         """
         CREATE TABLE IF NOT EXISTS history (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,18 +64,9 @@ def init_db():
             result   TEXT    NOT NULL,
             risk     INTEGER NOT NULL
         )
-        """,
         """
-        CREATE TABLE IF NOT EXISTS history (
-            id       SERIAL PRIMARY KEY,
-            username TEXT    NOT NULL,
-            url      TEXT    NOT NULL,
-            result   TEXT    NOT NULL,
-            risk     INTEGER NOT NULL
-        )
-        """
-    ))
-    c.execute(q(
+    )
+    c.execute(
         """
         CREATE TABLE IF NOT EXISTS logins (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,55 +75,29 @@ def init_db():
             user_agent    TEXT,
             logged_in_at  DATETIME DEFAULT CURRENT_TIMESTAMP
         )
-        """,
         """
-        CREATE TABLE IF NOT EXISTS logins (
-            id            SERIAL PRIMARY KEY,
-            username      TEXT NOT NULL,
-            ip_address    TEXT,
-            user_agent    TEXT,
-            logged_in_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    ))
+    )
     conn.commit()
     conn.close()
 
 
-# IMPORTANT: this must run unconditionally at import time, because Render
-# runs this app via gunicorn ("gunicorn app:app"), which imports this file
-# as a module and NEVER executes the `if __name__ == "__main__":` block
-# below. If init_db() is only called inside that block, the database
-# tables never get created in production and every query fails with
+# IMPORTANT: this must run unconditionally at import time, because
+# gunicorn ("gunicorn app:app") imports this file as a module and
+# NEVER executes the `if __name__ == "__main__":` block below. If
+# init_db() is only called inside that block, the database tables
+# never get created in production and every query fails with
 # "no such table".
 init_db()
 
 
-def ph(sql):
-    """Convert a '?'-style query into the right placeholder style for
-    the active backend. Write every query using '?' as usual; this
-    swaps them to '%s' automatically when running on Postgres."""
-    return sql.replace("?", "%s") if USE_POSTGRES else sql
-
-
 def execute(conn, sql, params=()):
-    """Run a query on either backend and return a cursor you can call
-    .fetchone()/.fetchall() on — sqlite3's connection object supports
-    .execute() directly, but psycopg2's does not (only its cursor does),
-    so this wrapper makes both backends usable with the same call style
-    everywhere else in the app."""
+    """Run a query and return a cursor you can call .fetchone()/.fetchall() on."""
     cur = conn.cursor()
-    cur.execute(ph(sql), params)
+    cur.execute(sql, params)
     return cur
 
 
-# Postgres and SQLite raise different exception types for a unique-
-# constraint violation (e.g. registering a username that already
-# exists) — catch whichever one is relevant for the active backend.
-if USE_POSTGRES:
-    IntegrityErrorType = psycopg2.errors.UniqueViolation
-else:
-    IntegrityErrorType = sqlite3.IntegrityError
+IntegrityErrorType = sqlite3.IntegrityError
 
 
 def truncate_url(url, length=55):
@@ -227,7 +156,7 @@ def run_full_scan(url, username):
         result = "PHISHING URL 🚨"
 
     conn = get_db()
-    execute(conn, 
+    execute(conn,
         "INSERT INTO history(username, url, result, risk) VALUES (?,?,?,?)",
         (username, url, result, risk),
     )
@@ -270,7 +199,7 @@ def register():
         else:
             try:
                 conn = get_db()
-                execute(conn, 
+                execute(conn,
                     "INSERT INTO users(username, password) VALUES (?, ?)",
                     (username, password),
                 )
@@ -278,8 +207,6 @@ def register():
                 conn.close()
                 return redirect("/login")
             except IntegrityErrorType:
-                if USE_POSTGRES:
-                    conn.rollback()
                 conn.close()
                 error = "Username already exists."
     return render_template("register.html", error=error)
@@ -292,7 +219,7 @@ def login():
         username = request.form["username"].strip()
         password = request.form["password"]
         conn = get_db()
-        user = execute(conn, 
+        user = execute(conn,
             "SELECT * FROM users WHERE username=? AND password=?",
             (username, password),
         ).fetchone()
@@ -300,7 +227,7 @@ def login():
         if user:
             session["user"] = username
             # Log this login for the admin panel's "Login Activity" view
-            execute(conn, 
+            execute(conn,
                 "INSERT INTO logins(username, ip_address, user_agent) VALUES (?, ?, ?)",
                 (username, request.remote_addr, request.headers.get("User-Agent", "")),
             )
@@ -403,7 +330,7 @@ def history():
     if "user" not in session:
         return redirect("/login")
     conn = get_db()
-    data = execute(conn, 
+    data = execute(conn,
         "SELECT url, result, risk FROM history WHERE username=? ORDER BY id DESC",
         (session["user"],),
     ).fetchall()
@@ -431,7 +358,7 @@ def admin_required(f):
 def get_login_activity(limit=50):
     """Most recent user logins, newest first — feeds the admin panel."""
     conn = get_db()
-    rows = execute(conn, 
+    rows = execute(conn,
         "SELECT username, ip_address, user_agent, logged_in_at "
         "FROM logins ORDER BY id DESC LIMIT ?",
         (limit,),
@@ -447,14 +374,14 @@ def get_admin_stats():
     users = []
     for u in users_raw:
         uname = u["username"]
-        scan_count = execute(conn, 
+        scan_count = execute(conn,
             "SELECT COUNT(*) AS cnt FROM history WHERE username=?", (uname,)
         ).fetchone()["cnt"]
-        phish_count = execute(conn, 
+        phish_count = execute(conn,
             "SELECT COUNT(*) AS cnt FROM history WHERE username=? AND result LIKE ?",
             (uname, "%PHISHING%"),
         ).fetchone()["cnt"]
-        login_count = execute(conn, 
+        login_count = execute(conn,
             "SELECT COUNT(*) AS cnt FROM logins WHERE username=?", (uname,)
         ).fetchone()["cnt"]
         users.append({
@@ -464,7 +391,7 @@ def get_admin_stats():
             "login_count": login_count,
         })
 
-    all_scans_raw = execute(conn, 
+    all_scans_raw = execute(conn,
         "SELECT id, username, url, result, risk FROM history ORDER BY id DESC"
     ).fetchall()
 
