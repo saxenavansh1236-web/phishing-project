@@ -11,4 +11,3 @@ cryptography
 opencv-python-headless
 Pillow
 imagehash
-psycopg2-binary
