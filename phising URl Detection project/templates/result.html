@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  
+
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Result — Phishing URL Detector</title>
@@ -12,7 +12,7 @@
       --meter-width: {{ risk }}%;
     }
 
-    /* ── New blocks: explainability / domain age / typosquat / SSL ── */
+    /* ── Explainability / domain age / typosquat / SSL ── */
     .reason-box {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -223,6 +223,59 @@
       letter-spacing: .04em;
       margin-left: 8px;
     }
+
+    /* ── Page content analysis box ── */
+    .page-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-left: 3px solid #a78bfa;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .page-box.page-alert { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+    .page-box h3 { margin: 0 0 8px 0; font-size: 15px; }
+    .page-box p  { margin: 0 0 6px 0; font-size: 14px; }
+    .page-box ul { margin: 6px 0 0 0; padding-left: 20px; }
+    .page-box li { margin-bottom: 6px; font-size: 14px; }
+
+    /* ── Risk breakdown ── */
+    .breakdown-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-left: 3px solid #64748b;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .breakdown-box h3 { margin: 0 0 8px 0; font-size: 15px; }
+    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .breakdown-table td { padding: 5px 0; border-bottom: 1px solid rgba(148,163,184,.2); }
+    .breakdown-table td.pts { text-align: right; font-weight: 700; font-family: monospace; white-space: nowrap; padding-left: 16px; }
+    .pts-up { color: #dc2626; }
+    .pts-down { color: #16a34a; }
+    .breakdown-table tr.total td { border-bottom: none; font-weight: 700; padding-top: 8px; }
+    .breakdown-note { margin: 8px 0 0 0; font-size: 12px; color: #64748b; }
+
+    /* ── Blocked-URL state ── */
+    .status-blocked {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-weight: 600;
+      color: #fbbf24;
+      background: rgba(245,158,11,.15);
+      border: 1px solid rgba(245,158,11,.35);
+    }
+    .blocked-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #fcd34d;
+    }
   </style>
 </head>
 <body>
@@ -234,6 +287,7 @@
     <a href="/scan-qr">Scan QR</a>
     <a href="/bulk-scan">Bulk Scan</a>
     <a href="/history">History</a>
+    <a href="/account/api-key">API Key</a>
     <a href="/logout">Logout</a>
   </div>
 </nav>
@@ -251,10 +305,21 @@
 
     <div class="result-item">
       <strong>Status:</strong>
-      <span class="status {% if 'PHISHING' in result %}status-danger{% else %}status-safe{% endif %}">
+      <span class="status {% if blocked %}status-blocked{% elif 'PHISHING' in result %}status-danger{% else %}status-safe{% endif %}">
         {{ result }}
       </span>
     </div>
+
+    {% if blocked %}
+    <!-- ── URL was blocked before any scan ran ── -->
+    <div class="result-item">
+      <div class="blocked-box">
+        🚫 This URL was not scanned. It points to a private/internal address, uses an
+        unsupported scheme, or redirects to one. For safety, no requests were made to it.
+        {% if redirect_info and redirect_info.error %}<br><small>{{ redirect_info.error }}</small>{% endif %}
+      </div>
+    </div>
+    {% else %}
 
     <div class="result-item">
       <strong>Risk Score: {{ risk }}%</strong>
@@ -264,8 +329,27 @@
       </div>
     </div>
 
+    <!-- ── Risk breakdown: how the score was reached ── -->
+    {% if risk_breakdown %}
+    <div class="result-item">
+      <div class="breakdown-box">
+        <h3>🧮 Risk Breakdown</h3>
+        <table class="breakdown-table">
+          {% for sig in risk_breakdown %}
+          <tr>
+            <td>{{ sig.label }}</td>
+            <td class="pts {% if sig.points > 0 %}pts-up{% elif sig.points < 0 %}pts-down{% endif %}">{{ '%+d' % sig.points }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="total"><td>Final risk score (limited to 0–100)</td><td class="pts">{{ risk }}</td></tr>
+        </table>
+        <p class="breakdown-note">The ML model only sees the domain name, so it sets the starting point; independent evidence (VirusTotal, domain age, page content …) moves the score. 60 or more is treated as phishing.</p>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- ── Redirect chain (shortener expansion) ── -->
-    {% if redirect_info and redirect_info.was_shortened %}
+    {% if redirect_info and (redirect_info.was_shortened or redirect_info.error) %}
     <div class="result-item">
       <div class="redirect-box">
         <h3>
@@ -294,7 +378,7 @@
     {% if reasons %}
     <div class="result-item">
       <div class="reason-box">
-        <h3>⚠️ Why this was flagged</h3>
+        <h3>⚠️ Why the ML model flagged it</h3>
         <ul>
           {% for r in reasons %}
             <li>{{ r.explanation }}</li>
@@ -396,10 +480,35 @@
     </div>
     {% endif %}
 
+    <!-- ── Page content analysis ── -->
+    {% if page_info %}
+    <div class="result-item">
+      <div class="page-box {% if page_info.strong_signal %}page-alert{% endif %}">
+        <h3>📄 Page Content Analysis</h3>
+        {% if page_info.fetched %}
+          {% if page_info.title %}<p>Page title: <strong>{{ page_info.title }}</strong></p>{% endif %}
+          {% if page_info.findings %}
+            <ul>
+              {% for f in page_info.findings %}
+                <li><span class="risk-badge badge-{{ f.severity }}">{{ f.severity }}</span> {{ f.text }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>No suspicious page behaviour found.</p>
+          {% endif %}
+        {% else %}
+          <p>{{ page_info.error or "The page could not be analysed." }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <div class="result-item">
       <strong>VirusTotal Report:</strong>
       <p class="vt-result">{{ vt_result }}</p>
     </div>
+
+    {% endif %}{# end: not blocked #}
 
     <div class="result-actions">
       <a href="/dashboard" class="btn btn-primary">🔍 Scan Another URL</a>

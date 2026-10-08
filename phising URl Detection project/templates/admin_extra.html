@@ -1,0 +1,131 @@
+{# Included from admin.html: theme layer + Analytics and Security sections. #}
+<link rel="stylesheet" href="/static/admin_pro.css">
+<script src="/static/admin_pro.js" defer></script>
+<style>
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px; margin-bottom:18px; }
+  .card { background:var(--panel,#111a2e); border:1px solid var(--line,#1d2943); border-radius:12px; padding:18px; }
+  .card h4 { font-size:14px; color:#f1f5f9; margin-bottom:12px; }
+  .chart-box { position:relative; height:240px; }
+  .kv { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line,#1d2943); font-size:13px; color:var(--muted,#8e9bb3); }
+  .kv b { color:#f1f5f9; }
+  .fi { margin:7px 0; font-size:12px; color:#94a3b8; }
+  .fi div { height:6px; background:#3b82f6; border-radius:3px; margin-top:3px; }
+  .btn-ok { background:rgba(34,197,94,.12); color:#4ade80; border:1px solid rgba(34,197,94,.3); padding:5px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+  .btn-ok:hover { background:#16a34a; color:#fff; }
+  .export a { display:inline-block; margin-right:10px; background:#334155; color:#e2e8f0; padding:7px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+  .export a:hover { background:#3b82f6; }
+</style>
+
+<!-- ANALYTICS -->
+<div class="section" id="section-analytics">
+  <div class="section-header">
+    <h3>Detection trends and usage</h3>
+    <div class="export">
+      <a href="/admin/export/scans.csv">⬇ Scans CSV</a><a href="/admin/export/users.csv">⬇ Users CSV</a><a href="/admin/export/logins.csv">⬇ Logins CSV</a>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h4>Scans per day (last 14 days)</h4><div class="chart-box"><canvas id="ch-daily"></canvas></div>
+      <p class="stat-sub">Only scans made after this upgrade carry a date.</p></div>
+    <div class="card"><h4>Verdicts</h4><div class="chart-box"><canvas id="ch-verdict"></canvas></div></div>
+    <div class="card"><h4>Risk-score distribution</h4><div class="chart-box"><canvas id="ch-risk"></canvas></div></div>
+    <div class="card"><h4>Where scans come from</h4><div class="chart-box"><canvas id="ch-source"></canvas></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h4>🚨 Most-flagged domains</h4>
+      {% for d in analytics.top_domains %}<div class="kv"><span class="url-mono">{{ d.domain }}</span><b>{{ d.count }}</b></div>
+      {% else %}<div class="empty">No phishing detected yet.</div>{% endfor %}</div>
+    <div class="card"><h4>👥 Most active users</h4>
+      {% for u in analytics.top_users %}<div class="kv"><span>{{ u.username }}</span><b>{{ u.scans }} scans · {{ u.phishing }} phishing</b></div>
+      {% else %}<div class="empty">No scans yet.</div>{% endfor %}</div>
+  </div>
+  <div class="card">
+    <h4>🤖 Detection model</h4>
+    {% if model_card %}
+      <div class="grid2" style="margin-bottom:0">
+        <div>
+          <div class="kv"><span>Algorithm</span><b>{{ model_card.deployed_model }}</b></div>
+          <div class="kv"><span>Trained</span><b>{{ model_card.trained_at }}</b></div>
+          <div class="kv"><span>Training data</span><b>{{ model_card.dataset_size }} URLs</b></div>
+          <div class="kv"><span>Accuracy / F1</span><b>{{ (model_card.accuracy*100)|round(1) }}% / {{ (model_card.f1_score*100)|round(1) }}%</b></div>
+          <div class="kv"><span>Precision / Recall</span><b>{{ (model_card.precision*100)|round(1) }}% / {{ (model_card.recall*100)|round(1) }}%</b></div>
+          <div class="kv"><span>ROC AUC</span><b>{{ model_card.roc_auc }}</b></div>
+        </div>
+        <div>
+          {% for name, w in model_card.top_features %}<div class="fi">{{ name }} · {{ (w*100)|round(1) }}%<div style="width:{{ (w*100)|round(0)|int }}%"></div></div>{% endfor %}
+        </div>
+      </div>
+    {% else %}<div class="empty">model_metrics.json not found. Run <code>python model.py</code>.</div>{% endif %}
+  </div>
+</div>
+
+<!-- SECURITY -->
+<div class="section" id="section-security">
+  <div class="section-header"><h3>Accounts, lockouts and API keys</h3></div>
+  <div class="card" style="margin-bottom:18px">
+    <h4>Integrations</h4>
+    {% for label, ok in integrations %}<div class="kv"><span>{{ label }}</span><b>{{ '✅ configured' if ok else '⚠️ not set' }}</b></div>{% endfor %}
+  </div>
+  <div class="section-header"><h3>👤 Accounts</h3></div>
+  <div class="admin-table-wrap" style="margin-bottom:24px"><table class="admin-table">
+    <thead><tr><th>Username</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+    {% for a in accounts if a.username != admin_user %}<tr>
+      <td>{{ a.username }}</td><td style="color:#64748b">{{ a.created_at or 'before upgrade' }}</td>
+      <td><span class="pill {{ 'pill-danger' if a.disabled else 'pill-safe' }}">{{ 'Disabled' if a.disabled else 'Active' }}</span></td>
+      <td><form method="POST" action="/admin/toggle-user" style="display:inline">
+        <input type="hidden" name="username" value="{{ a.username }}"/>
+        <button class="{{ 'btn-ok' if a.disabled else 'btn-del' }}">{{ 'Enable' if a.disabled else 'Disable' }}</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No other accounts.</td></tr>{% endfor %}
+    </tbody></table></div>
+
+  <div class="section-header"><h3>🚫 Failed-login sources (last 15 min)</h3></div>
+  <div class="admin-table-wrap" style="margin-bottom:24px"><table class="admin-table">
+    <thead><tr><th>Type</th><th>IP address</th><th>Failures</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+    {% for l in locked %}<tr>
+      <td>{{ l.scope }}</td><td class="url-mono">{{ l.ip }}</td><td>{{ l.count }}</td>
+      <td><span class="pill {{ 'pill-danger' if l.status == 'Locked' else 'pill-user' }}">{{ l.status }}</span></td>
+      <td><form method="POST" action="/admin/unlock" style="display:inline">
+        <input type="hidden" name="scope" value="{{ l.scope }}"/><input type="hidden" name="ip" value="{{ l.ip }}"/>
+        <button class="btn-ok">Unlock</button></form></td></tr>
+    {% else %}<tr><td colspan="5" class="empty">No failed logins in the last 15 minutes.</td></tr>{% endfor %}
+    </tbody></table></div>
+  <div class="section-header"><h3>🔑 API keys</h3></div>
+  <div class="admin-table-wrap"><table class="admin-table">
+    <thead><tr><th>User</th><th>Key prefix</th><th>Created</th><th>Action</th></tr></thead>
+    <tbody>
+    {% for k in api_keys %}<tr>
+      <td>{{ k.username }}</td><td class="url-mono">{{ k.key_prefix }}…</td><td>{{ k.created_at }}</td>
+      <td><form method="POST" action="/admin/revoke-key" style="display:inline" onsubmit="return confirm('Revoke this API key?')">
+        <input type="hidden" name="username" value="{{ k.username }}"/><button class="btn-del">Revoke</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No API keys issued.</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  Object.assign(sectionTitles, { analytics: 'Analytics', security: 'Security Centre' });
+  const A = {{ analytics | tojson }};
+  let drawn = false;
+  function draw() {
+    if (drawn || typeof Chart === 'undefined') return; drawn = true;
+    Chart.defaults.color = '#8e9bb3'; Chart.defaults.borderColor = '#1d2943'; Chart.defaults.font.family = 'Inter, system-ui, "Segoe UI", sans-serif';
+    const opt = { responsive: true, maintainAspectRatio: false };
+    new Chart(document.getElementById('ch-daily'), { type: 'bar', data: { labels: A.daily.labels, datasets: [
+      { label: 'Safe', data: A.daily.safe, backgroundColor: '#22c55e' },
+      { label: 'Phishing', data: A.daily.phishing, backgroundColor: '#ef4444' }] },
+      options: { ...opt, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
+    new Chart(document.getElementById('ch-verdict'), { type: 'doughnut', data: { labels: ['Safe', 'Phishing'],
+      datasets: [{ data: [A.verdicts.safe, A.verdicts.phishing], backgroundColor: ['#22c55e', '#ef4444'], borderWidth: 0 }] }, options: opt });
+    new Chart(document.getElementById('ch-risk'), { type: 'bar', data: { labels: A.risk.labels,
+      datasets: [{ label: 'Scans', data: A.risk.counts, backgroundColor: ['#22c55e', '#84cc16', '#f59e0b', '#f97316', '#ef4444'] }] },
+      options: { ...opt, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+    new Chart(document.getElementById('ch-source'), { type: 'doughnut', data: { labels: A.sources.labels,
+      datasets: [{ data: A.sources.counts, backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6', '#f59e0b', '#64748b'], borderWidth: 0 }] }, options: opt });
+  }
+  const orig = showSection;
+  showSection = function (n) { orig(n); if (n === 'analytics') draw(); };
+});
+</script>
