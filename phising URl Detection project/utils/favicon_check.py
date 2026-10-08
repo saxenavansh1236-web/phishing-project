@@ -1,27 +1,17 @@
 """
 utils/favicon_check.py
 
-Favicon-based visual similarity detection.
+Favicon-based visual similarity detection (perceptual hashing).
 
-Many phishing sites clone a target brand's exact visual identity —
-including the favicon — while hosting on a completely unrelated domain
-(e.g. "paypal-secure-login.tk" using PayPal's real favicon). A byte-level
-image comparison would fail here because favicons get re-compressed,
-resized, or re-encoded, so this module uses PERCEPTUAL hashing (phash),
-which is robust to those changes and only cares about visual structure.
+Many phishing sites clone a brand's exact favicon while hosting on an unrelated
+domain. Byte-level comparison fails (re-compression, resizing), so this uses
+perceptual hashing (phash) and compares Hamming distance against a local
+database of known-brand hashes (utils/known_favicons.json, built offline by
+scripts/build_favicon_db.py).
 
-Pipeline:
-    1. Locate the site's favicon (checks common paths + parses <link> tags)
-    2. Download it and compute a perceptual hash (64-bit phash)
-    3. Compare that hash (Hamming distance) against a small local
-       database of known-brand favicon hashes (utils/known_favicons.json)
-    4. If the hash is a close match to a brand BUT the domain being
-       scanned isn't that brand's real domain -> flag as a likely
-       visual clone / brand impersonation attempt
-
-The known-brand database is built once (offline, with real internet
-access) using scripts/build_favicon_db.py — see that file's docstring.
-This module only ever reads the resulting JSON at runtime.
+SSRF-hardened: every network fetch goes through utils.net_safety.safe_get(),
+so a page can't point its <link rel="icon"> at an internal address, and
+downloads are size-capped.
 """
 
 import io
@@ -32,31 +22,24 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
+from utils.net_safety import safe_get, read_capped, UnsafeURL
+
 try:
     from PIL import Image
     import imagehash
+    Image.MAX_IMAGE_PIXELS = 5_000_000   # refuse decompression bombs
     _DEPS_OK = True
 except ImportError:
     _DEPS_OK = False
 
-REQUEST_TIMEOUT = 6
-HAMMING_MATCH_THRESHOLD = 10   # phash bits differing; <=10 on a 64-bit hash is a strong visual match
+HAMMING_MATCH_THRESHOLD = 10   # <=10 differing bits on a 64-bit phash is a strong match
 KNOWN_DB_PATH = os.path.join(os.path.dirname(__file__), "known_favicons.json")
-
-HEADERS = {"User-Agent": "Mozilla/5.0 (PhishGuard-FaviconCheck)"}
+MAX_HTML_BYTES = 200_000
+MAX_ICON_BYTES = 300_000
 
 
 def _normalize_url(url: str) -> str:
-    """
-    requests (and urljoin) require a URL with a scheme — "google.com"
-    fails, "https://google.com" works. Other checks in this project
-    (e.g. SSL inspection) may work directly off a bare hostname via raw
-    sockets, but this module goes through requests/urljoin, so every
-    entry point here normalizes first. Without this, EVERY domain
-    (legitimate or malicious) silently fails favicon retrieval whenever
-    a bare domain is scanned — which looks identical to "no favicon
-    found" and is easy to misdiagnose as a site-specific problem.
-    """
+    """requests/urljoin need a scheme; bare domains like 'google.com' get https://."""
     url = url.strip()
     if not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', url):
         url = "https://" + url
@@ -69,41 +52,35 @@ def _root_domain(url: str) -> str:
 
 
 def _candidate_favicon_urls(url: str) -> list:
-    """
-    Builds a short list of places a favicon is likely to be, in priority
-    order: parsed <link> tags from the page HTML first (most accurate),
-    then the standard /favicon.ico fallback every browser also tries.
-    """
+    """<link> icons from the page first (most accurate), then /favicon.ico."""
     candidates = []
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        html = resp.text[:200_000]  # cap — we only need the <head>, not the whole page
+        resp, final_url = safe_get(url)
+        html = read_capped(resp, MAX_HTML_BYTES).decode(resp.encoding or "utf-8", errors="replace")
         for match in re.finditer(
             r'<link[^>]+rel=["\'](?:shortcut icon|icon|apple-touch-icon)["\'][^>]*>',
-            html,
-            re.IGNORECASE,
+            html, re.IGNORECASE,
         ):
-            tag = match.group(0)
-            href_match = re.search(r'href=["\']([^"\']+)["\']', tag, re.IGNORECASE)
-            if href_match:
-                candidates.append(urljoin(url, href_match.group(1)))
-    except requests.exceptions.RequestException:
+            href = re.search(r'href=["\']([^"\']+)["\']', match.group(0), re.IGNORECASE)
+            if href:
+                candidates.append(urljoin(final_url, href.group(1)))
+    except (UnsafeURL, requests.exceptions.RequestException):
         pass
-
-    # HTTPS fallback first, then HTTP, in case the site's cert is broken
-    # but the favicon is still reachable over the fallback scheme used
-    # elsewhere in the redirect trace.
     candidates.append(urljoin(url, "/favicon.ico"))
     return candidates
 
 
 def _download_image(favicon_url: str):
     try:
-        resp = requests.get(favicon_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        if resp.status_code != 200 or not resp.content:
+        resp, _ = safe_get(favicon_url)
+        if resp.status_code != 200:
+            resp.close()
             return None
-        return Image.open(io.BytesIO(resp.content)).convert("RGBA")
-    except Exception:
+        data = read_capped(resp, MAX_ICON_BYTES)
+        if not data:
+            return None
+        return Image.open(io.BytesIO(data)).convert("RGBA")
+    except Exception:   # unsafe URL, network error, bad image: all mean "no favicon"
         return None
 
 
@@ -119,38 +96,22 @@ def _load_known_db() -> dict:
 
 def check_favicon_similarity(url: str) -> dict:
     """
-    Returns:
-        {
-            "supported": bool,           # False if Pillow/imagehash aren't installed
-            "has_favicon": bool,
-            "favicon_url": str | None,
-            "phash": str | None,
-            "matched_brand": str | None,      # e.g. "PayPal"
-            "matched_domains": list,          # that brand's legitimate domain(s)
-            "hamming_distance": int | None,
-            "is_visual_clone": bool,          # True = looks like a brand, but domain doesn't match
-            "risk": "high" | "medium" | "low" | "unknown",
-            "note": str,
-        }
+    Returns a dict with: supported, has_favicon, favicon_url, phash,
+    matched_brand, matched_domains, hamming_distance, is_visual_clone,
+    risk ("high"|"low"|"unknown"), note.
     """
     base = {
-        "supported": _DEPS_OK,
-        "has_favicon": False,
-        "favicon_url": None,
-        "phash": None,
-        "matched_brand": None,
-        "matched_domains": [],
-        "hamming_distance": None,
-        "is_visual_clone": False,
-        "risk": "unknown",
-        "note": "",
+        "supported": _DEPS_OK, "has_favicon": False, "favicon_url": None,
+        "phash": None, "matched_brand": None, "matched_domains": [],
+        "hamming_distance": None, "is_visual_clone": False,
+        "risk": "unknown", "note": "",
     }
 
     if not _DEPS_OK:
         base["note"] = "Pillow / ImageHash not installed — favicon check skipped."
         return base
 
-    url = _normalize_url(url)   # <-- THE FIX: guarantee a scheme before any requests/urljoin call
+    url = _normalize_url(url)
 
     known_db = _load_known_db()
     if not known_db:
@@ -187,20 +148,15 @@ def check_favicon_similarity(url: str) -> dict:
     if not known_db:
         return base
 
-    best_brand = None
-    best_distance = None
-    best_domains = []
-
+    best_brand, best_distance, best_domains = None, None, []
     for brand, entry in known_db.items():
         try:
             brand_hash = imagehash.hex_to_hash(entry["phash"])
         except (KeyError, ValueError):
             continue
-        distance = scanned_hash - brand_hash  # Hamming distance
+        distance = scanned_hash - brand_hash
         if best_distance is None or distance < best_distance:
-            best_distance = distance
-            best_brand = brand
-            best_domains = entry.get("domains", [])
+            best_brand, best_distance, best_domains = brand, distance, entry.get("domains", [])
 
     if best_distance is None:
         return base
