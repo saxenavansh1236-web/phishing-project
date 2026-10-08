@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>PhishGuard</h1>
+    <p id="current" class="muted">Reading current tab…</p>
+  </header>
+
+  <button id="scan">Scan this page</button>
+
+  <section id="result" hidden>
+    <div id="verdict"></div>
+    <div class="bar"><div id="fill"></div></div>
+    <p id="final" class="muted" hidden></p>
+    <ul id="reasons"></ul>
+  </section>
+  <p id="error" role="alert" hidden></p>
+
+  <details id="settings">
+    <summary>Settings</summary>
+    <label>Server address <input id="apiBase" type="url" placeholder="http://127.0.0.1:5000"></label>
+    <label>API key <input id="apiKey" type="password" placeholder="pg_…" autocomplete="off"></label>
+    <div class="row">
+      <button id="save" class="secondary">Save</button>
+      <button id="test" class="secondary">Test connection</button>
+    </div>
+    <p id="settingsMsg" class="muted"></p>
+    <p class="muted">Create a key at <i>/account/api-key</i> on your server. Pages are only sent when you press Scan.</p>
+  </details>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

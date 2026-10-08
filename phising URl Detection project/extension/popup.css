@@ -1,0 +1,31 @@
+:root {
+  --ink: #14202b; --paper: #f5f7f6; --line: #d3dbd8;
+  --safe: #1c7c54; --danger: #c0392b; --warn: #b7791f; --accent: #14202b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #e8eeec; --paper: #162029; --line: #2c3a45; --safe: #4cc38a; --danger: #ff7a6b; --warn: #e6b450; --accent: #e8eeec; }
+}
+* { box-sizing: border-box; }
+body { width: 340px; margin: 0; padding: 14px; background: var(--paper); color: var(--ink);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.muted { color: color-mix(in srgb, var(--ink) 60%, transparent); margin: 2px 0 0; word-break: break-all; }
+button { width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--paper); font: inherit; font-weight: 600; cursor: pointer; }
+button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 8px; }
+button:disabled { opacity: .55; cursor: progress; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+#result { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+#verdict { font-size: 16px; font-weight: 700; }
+#verdict.safe { color: var(--safe); } #verdict.phishing { color: var(--danger); }
+.bar { height: 6px; margin: 8px 0; background: var(--line); border-radius: 3px; overflow: hidden; }
+#fill { height: 100%; width: 0; background: var(--safe); transition: width .3s; }
+ul { margin: 8px 0 0; padding-left: 18px; } li { margin: 3px 0; }
+#error { margin-top: 12px; color: var(--danger); }
+details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; font-weight: 600; }
+label { display: block; margin-top: 10px; }
+input { width: 100%; margin-top: 4px; padding: 7px; border: 1px solid var(--line); border-radius: 5px;
+  background: transparent; color: inherit; font: inherit; }
+.row { display: flex; gap: 8px; } .row button { margin-top: 10px; }

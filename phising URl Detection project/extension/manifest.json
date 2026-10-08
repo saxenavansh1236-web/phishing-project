@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "PhishGuard Scanner",
+  "version": "1.0.0",
+  "description": "Scan the current page or any link with your PhishGuard server.",
+  "permissions": ["activeTab", "contextMenus", "scripting", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1:5000/*",
+    "http://localhost:5000/*",
+    "https://*.onrender.com/*"
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "PhishGuard" },
+  "background": { "service_worker": "background.js" }
+}
