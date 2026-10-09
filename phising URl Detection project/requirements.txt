@@ -1,5 +1,5 @@
-flask
-scikit-learn
+﻿flask
+scikit-learn==1.8.0
 pandas
 numpy
 joblib
@@ -14,3 +14,4 @@ imagehash
 beautifulsoup4
 tldextract
 gunicorn
+
