@@ -1,61 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>History — Phishing URL Detector</title>
-  <link rel="stylesheet" href="/static/style.css"/>
-</head>
-<body>
-
-<nav class="navbar">
-  <span class="nav-brand">🛡 Phishing Detector</span>
-  <div class="nav-links">
-    <a href="/dashboard">Scan</a>
-    <a href="/history">History</a>
-    <a href="/logout">Logout</a>
-  </div>
-</nav>
-
-<div class="container">
-
-  <div class="card">
-    <h2>📋 Scan History</h2>
-
-    {% if data %}
-      <table class="history-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>URL</th>
-            <th>Result</th>
-            <th>Risk Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in data %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td class="url-cell">{{ row[0] }}</td>
-            <td class="{% if 'PHISHING' in row[1] %}text-danger{% else %}text-safe{% endif %}">
-              {{ row[1] }}
-            </td>
-            <td>{{ row[2] }}%</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-
-    {% else %}
-      <p class="empty-message">No scans yet. <a href="/dashboard">Scan a URL now.</a></p>
-    {% endif %}
-
-    <br>
-    <a href="/dashboard" class="btn btn-primary">🔍 Scan New URL</a>
-
-  </div>
-
+{% extends "base.html" %}{% set active = 'history' %}
+{% block title %}Scan history{% endblock %}
+{% block content %}
+<div class="page-head"><h1><svg class="ic"><use href="#i-clock"/></svg>Scan history</h1>
+  <p>Everything you have checked, newest first{% if stats and stats.total >= 500 %} (showing the latest 500){% endif %}.</p></div>
+{% if stats %}
+<div class="stats">
+  <div class="stat"><small>Total</small><b>{{ stats.total }}</b></div>
+  <div class="stat"><small>Threats</small><b class="{{ 'bad' if stats.threats else '' }}">{{ stats.threats }}</b></div>
+  <div class="stat"><small>Safe</small><b class="ok">{{ stats.safe }}</b></div>
 </div>
-
-</body>
-</html>
+{% endif %}
+{% if data %}
+<div class="toolbar">
+  <input class="search" id="h-search" type="search" placeholder="Search your links…" aria-label="Search your links"/>
+  <button class="chip on" type="button" data-filter="all">All</button>
+  <button class="chip" type="button" data-filter="phish">Phishing</button>
+  <button class="chip" type="button" data-filter="safe">Safe</button>
+</div>
+<div class="tablewrap"><table>
+  <thead><tr><th>Link</th><th>Verdict</th><th>Risk</th><th>Date</th><th>Via</th></tr></thead>
+  <tbody id="h-body">
+  {% for r in data %}{% set p = 'PHISHING' in r.result %}
+    <tr data-v="{{ 'phish' if p else 'safe' }}" data-t="{{ r.url|lower }}">
+      <td class="url">{{ r.url }}</td>
+      <td><span class="pill {{ 'bad' if p else 'ok' }}">{{ 'Phishing' if p else 'Safe' }}</span></td>
+      <td><div class="risk" style="--c:{{ 'var(--bad)' if r.risk >= 60 else ('var(--warn)' if r.risk >= 30 else 'var(--ok)') }}"><i><b style="--w:{{ r.risk|int }}%"></b></i>{{ r.risk|int }}%</div></td>
+      <td class="mut">{{ (r.scanned_at or '')[:16] or '—' }}</td>
+      <td class="mut">{{ r.source if r.source and r.source != 'unknown' else '—' }}</td>
+    </tr>
+  {% endfor %}
+    <tr id="h-none" style="display:none"><td colspan="5"><div class="empty"><b>No matching links</b>Try a different search or filter.</div></td></tr>
+  </tbody>
+</table></div>
+{% else %}
+<div class="card"><div class="empty"><svg class="ic"><use href="#i-clock"/></svg><b>No scans yet</b>Links you check will show up here.<br><br><a class="btn pri" href="/dashboard">Scan your first link</a></div></div>
+{% endif %}
+{% endblock %}
