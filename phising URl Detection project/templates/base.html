@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{% block title %}PhishGuard{% endblock %} — PhishGuard</title>
+<link rel="stylesheet" href="/static/app_pro.css"/>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+</svg>
+<header class="pg-header"><div class="wrap">
+  <a class="brand" href="/dashboard"><svg class="ic"><use href="#i-shield"/></svg>PhishGuard</a>
+  <nav aria-label="Main">
+    <a class="{{ 'on' if active == 'scan' }}" href="/dashboard">Scan</a>
+    <a class="{{ 'on' if active == 'qr' }}" href="/scan-qr">Scan QR</a>
+    <a class="{{ 'on' if active == 'bulk' }}" href="/bulk-scan">Bulk scan</a>
+    <a class="{{ 'on' if active == 'history' }}" href="/history">History</a>
+    <a class="{{ 'on' if active == 'key' }}" href="/account/api-key">API key</a>
+    <a class="out" href="/logout">Logout</a>
+  </nav>
+</div></header>
+<main class="wrap page">{% block content %}{% endblock %}</main>
+<footer><div class="wrap">PhishGuard gives a risk assessment, not a guarantee. When in doubt, don't enter passwords or payment details.</div></footer>
+<script src="/static/app_pro.js" defer></script>
+</body>
+</html>

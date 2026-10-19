@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% set active = 'key' %}
+{% block title %}API key{% endblock %}
+{% block content %}
+<div class="page-head"><h1><svg class="ic"><use href="#i-key"/></svg>API key</h1>
+  <p>Your key lets the Chrome extension and your own scripts scan links on your behalf, without a browser login.</p></div>
+<div class="cols">
+  <section class="card">
+    <h2><svg class="ic"><use href="#i-key"/></svg>Your key</h2>
+    {% if new_key %}
+      <div class="alert warn"><svg class="ic"><use href="#i-alert"/></svg><div><b>Copy it now.</b> For your safety it is shown only once and cannot be recovered later.</div></div>
+      <div class="keybox"><code id="new-key">{{ new_key }}</code><button type="button" data-copy="#new-key">Copy</button></div>
+    {% elif prefix %}
+      <div class="keybox"><code>{{ prefix }}••••••••••••••••••••</code></div>
+      <p class="note">Only the start of the key is stored and shown. If you lost it, replace it with a new one.</p>
+    {% else %}
+      <p class="note" style="margin:0 0 4px">You don't have a key yet.</p>
+    {% endif %}
+    <form method="POST" action="/account/api-key" {% if prefix or new_key %}onsubmit="return confirm('Replace your key? The old one stops working immediately.')"{% endif %}>
+      <button class="btn {{ 'danger' if prefix or new_key else 'pri' }} full" type="submit">{{ 'Replace key' if prefix or new_key else 'Create key' }}</button>
+    </form>
+    <p class="note">Keep your key private, like a password. Anyone who has it can scan links as you.</p>
+  </section>
+  <aside class="card">
+    <h2><svg class="ic"><use href="#i-info"/></svg>How to use it</h2>
+    <ol class="steps"><li>Load the extension from <code>chrome://extensions</code> (Developer mode, Load unpacked).</li>
+      <li>Open its Settings, paste your server address and this key, then Save.</li>
+      <li>Scan the current page, or right-click any link and choose "Scan link with PhishGuard".</li></ol>
+    <p class="note">Or call the API directly:</p>
+    <pre class="code">curl -X POST http://127.0.0.1:5000/api/v1/scan \
+  -H "X-API-Key: pg_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'</pre>
+  </aside>
+</div>
+{% endblock %}
