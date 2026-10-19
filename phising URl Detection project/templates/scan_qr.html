@@ -1,62 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scan QR Code — Phishing URL Detector</title>
-  <link rel="stylesheet" href="/static/style.css"/>
-</head>
-<body>
-
-<nav class="navbar">
-  <span class="nav-brand">🛡 Phishing Detector</span>
-  <div class="nav-links">
-    <a href="/dashboard">Scan URL</a>
-    <a href="/scan-qr">Scan QR</a>
-    <a href="/history">History</a>
-    <a href="/logout">Logout</a>
-  </div>
-</nav>
-
-<div class="container">
-
-  <div class="card">
-    <h2>📷 Scan a QR Code</h2>
-    <p>Upload a QR code image (PNG/JPG). We'll decode the embedded link and run it through the full phishing check — this catches "quishing" attacks where a malicious URL is hidden inside a QR code instead of typed out.</p>
-
-    {% if error %}
-      <div class="alert-error" style="background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.35); color:#fca5a5; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
-        {{ error }}
-      </div>
-    {% endif %}
-
-    {% if non_url_warning %}
-      <div class="alert-warning" style="background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35); color:#fbbf24; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
-        This QR code was read successfully, but it doesn't contain a URL — so there's nothing to scan.
-        <br/><br/>
-        <strong>Decoded content:</strong> {{ decoded_text }}
-      </div>
-    {% endif %}
-
-    <form method="POST" action="/scan-qr" enctype="multipart/form-data">
-
-      <div class="form-group">
-        <label for="qr_image">QR Code Image</label>
-        <input
-          type="file"
-          id="qr_image"
-          name="qr_image"
-          accept="image/png, image/jpeg, image/jpg"
-          required
-        />
-      </div>
-
-      <button type="submit" class="btn btn-primary">📷 Decode &amp; Scan</button>
-
+{% extends "base.html" %}{% set active = 'qr' %}
+{% block title %}Scan a QR code{% endblock %}
+{% block content %}
+<div class="page-head"><h1><svg class="ic"><use href="#i-qr"/></svg>Scan a QR code</h1>
+  <p>Upload a picture of a QR code. We read the link hidden inside it and run the full phishing check, so you can see where it really leads before you open it.</p></div>
+<div class="cols">
+  <section class="card">
+    {% if error %}<div class="alert bad" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{ error }}</div></div>{% endif %}
+    {% if non_url_warning %}<div class="alert warn" role="alert"><svg class="ic"><use href="#i-info"/></svg>
+      <div><b>This QR code does not contain a web link.</b><br>It contains this text instead: <code>{{ decoded_text }}</code><br>Only links can be scanned for phishing.</div></div>{% endif %}
+    <form method="POST" action="/scan-qr" enctype="multipart/form-data" data-busy="Reading QR code…">
+      <label class="drop"><svg class="ic"><use href="#i-upload"/></svg><b>Choose a QR image or drag it here</b><small>PNG, JPG or WebP</small>
+        <input type="file" name="qr_image" accept="image/png,image/jpeg,image/webp" required/>
+        <span class="drop-name"></span><img class="drop-prev" alt="Selected QR code" hidden/></label>
+      <button class="btn pri full" type="submit"><svg class="ic"><use href="#i-search"/></svg><span class="spin"></span><span class="lbl">Decode and scan</span></button>
     </form>
-  </div>
-
+  </section>
+  <aside class="card">
+    <h2><svg class="ic"><use href="#i-shield"/></svg>Why scan QR codes?</h2>
+    <p class="note" style="margin:0 0 8px">Attackers hide bad links inside QR codes on posters, parcels and emails because you can't read the address. This is called quishing.</p>
+    <ol class="steps"><li>Take a screenshot or photo of the QR code.</li><li>Upload it here. The image is only used to read the link.</li><li>Check the verdict before you open anything.</li></ol>
+  </aside>
 </div>
-
-</body>
-</html>
+{% endblock %}
