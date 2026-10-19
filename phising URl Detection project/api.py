@@ -13,7 +13,7 @@ import time
 from collections import defaultdict, deque
 from functools import wraps
 
-from flask import Blueprint, g, jsonify, redirect, render_template_string, request, session
+from flask import Blueprint, g, jsonify, redirect, render_template, request, session
 
 RATE_LIMIT = 30   # requests per key...
 WINDOW = 60       # ...per this many seconds (in-memory; use Redis/Flask-Limiter with >1 worker)
@@ -51,25 +51,6 @@ def _retry_after(key_hash):
 
 def _jsonable(obj):
     return json.loads(json.dumps(obj, default=str))
-
-
-KEY_PAGE = """
-<!doctype html><title>API key</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-<div class="container" style="max-width:560px;margin:40px auto">
-  <h2>API key</h2>
-  {% if new_key %}
-    <p>Copy this now. It won't be shown again.</p>
-    <pre style="padding:12px;background:#111;color:#0f0;overflow:auto">{{ new_key }}</pre>
-  {% elif prefix %}
-    <p>Current key: <code>{{ prefix }}…</code></p>
-  {% else %}
-    <p>You don't have a key yet.</p>
-  {% endif %}
-  <form method="post"><button type="submit">{{ 'Replace key' if prefix or new_key else 'Create key' }}</button></form>
-  <p><a href="/dashboard">Back to dashboard</a></p>
-</div>
-"""
 
 
 def create_api_blueprint(run_full_scan, get_db, execute):
@@ -150,6 +131,6 @@ def create_api_blueprint(run_full_scan, get_db, execute):
             conn.commit()
         row = execute(conn, "SELECT key_prefix FROM api_keys WHERE username=?", (user,)).fetchone()
         conn.close()
-        return render_template_string(KEY_PAGE, new_key=new_key, prefix=row["key_prefix"] if row else None)
+        return render_template("api_key.html", new_key=new_key, prefix=row["key_prefix"] if row else None)
 
     return bp
