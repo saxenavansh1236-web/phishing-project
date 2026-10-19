@@ -66,9 +66,8 @@ if getattr(model, "n_features_in_", len(FEATURE_NAMES)) != len(FEATURE_NAMES):
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
-if app.secret_key == "dev-only-fallback-change-me" or ADMIN_PASSWORD == "admin123":
-    print("WARNING: SECRET_KEY and/or ADMIN_PASSWORD are still the insecure defaults. "
-          "Set real values in .env before deploying.")
+if app.secret_key == "dev-only-fallback-change-me":
+    print("WARNING: SECRET_KEY is still the insecure default. Set a real value in .env before deploying.")
 
 # ── DATABASE SETUP ─────────────────────────────────────────────
 DB_PATH = os.environ.get("DB_PATH", "users.db")
@@ -126,6 +125,7 @@ def init_db():
         )
         """
     )
+    c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_rate_events ON rate_events(scope, ip, ts)")
     conn.commit()
     conn.close()
@@ -192,6 +192,33 @@ def _ensure_scheme(url):
     """Bare domains like 'google.com' are accepted; give them https:// for scanning."""
     url = url.strip()
     return url if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url) else "https://" + url
+
+
+# ── ADMIN PASSWORD ─────────────────────────────────────────────
+# A password changed on the Settings page is stored HASHED in the database, so it survives restarts.
+# Until it is changed there, ADMIN_PASSWORD from .env is used.
+def admin_password_ok(password):
+    conn = get_db()
+    row = execute(conn, "SELECT value FROM settings WHERE key='admin_password_hash'").fetchone()
+    conn.close()
+    if row:
+        return check_password_hash(row["value"], password)
+    return hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode())
+
+
+def admin_password_is_custom():
+    conn = get_db()
+    row = execute(conn, "SELECT 1 FROM settings WHERE key='admin_password_hash'").fetchone()
+    conn.close()
+    return row is not None
+
+
+def set_admin_password(new_password):
+    conn = get_db()
+    execute(conn, "INSERT OR REPLACE INTO settings(key, value) VALUES ('admin_password_hash', ?)",
+            (generate_password_hash(new_password),))
+    conn.commit()
+    conn.close()
 
 
 # ── RATE LIMITING ──────────────────────────────────────────────
@@ -480,6 +507,18 @@ def login():
     return render_template("login.html", error=error)
 
 
+def dashboard_summary(username):
+    """Recent scans and totals for the signed-in user's dashboard."""
+    conn = get_db()
+    recent = [dict(r) for r in execute(conn,
+        "SELECT url, result, risk FROM history WHERE username=? ORDER BY id DESC LIMIT 5", (username,)).fetchall()]
+    total = execute(conn, "SELECT COUNT(*) AS c FROM history WHERE username=?", (username,)).fetchone()["c"]
+    threats = execute(conn, "SELECT COUNT(*) AS c FROM history WHERE username=? AND result LIKE '%PHISHING%'",
+                      (username,)).fetchone()["c"]
+    conn.close()
+    return {"recent": recent, "stats": {"total": total, "threats": threats, "safe": total - threats}}
+
+
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
     if "user" not in session:
@@ -490,7 +529,7 @@ def dashboard():
         scan_data = run_full_scan(url, session["user"])
         return render_template("result.html", **scan_data)
 
-    return render_template("dashboard.html")
+    return render_template("dashboard.html", **dashboard_summary(session["user"]))
 
 
 @app.route("/scan-qr", methods=["GET", "POST"])
@@ -568,12 +607,14 @@ def history():
     if "user" not in session:
         return redirect("/login")
     conn = get_db()
-    data = execute(conn,
-        "SELECT url, result, risk FROM history WHERE username=? ORDER BY id DESC",
+    data = [dict(r) for r in execute(conn,
+        "SELECT url, result, risk, scanned_at, source FROM history WHERE username=? ORDER BY id DESC LIMIT 500",
         (session["user"],),
-    ).fetchall()
+    ).fetchall()]
     conn.close()
-    return render_template("history.html", data=data)
+    threats = sum(1 for r in data if "PHISHING" in r["result"])
+    return render_template("history.html", data=data,
+                           stats={"total": len(data), "threats": threats, "safe": len(data) - threats})
 
 
 @app.route("/logout")
@@ -675,7 +716,7 @@ def get_admin_extras(all_scans, users):
         "integrations": [("VirusTotal API key", bool(os.environ.get("VT_API_KEY"))),
                          ("Alert webhook", bool(os.environ.get("ALERT_WEBHOOK_URL"))),
                          ("Secure SECRET_KEY", app.secret_key != "dev-only-fallback-change-me"),
-                         ("Secure admin password", ADMIN_PASSWORD != "admin123")],
+                         ("Secure admin password", ADMIN_PASSWORD != "admin123" or admin_password_is_custom())],
     }
 
 
@@ -759,7 +800,7 @@ def admin_login():
         username = request.form["username"].strip()
         password = request.form["password"]
         if (hmac.compare_digest(username.encode(), ADMIN_USERNAME.encode())
-                and hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode())):
+                and admin_password_ok(password)):
             clear_events("admin_login")
             session.clear()
             session.permanent = True
@@ -842,27 +883,19 @@ def admin_clear_logins():
 @app.route("/admin/change-password", methods=["POST"])
 @admin_required
 def admin_change_password():
-    global ADMIN_PASSWORD
     current = request.form.get("current_password", "")
     new_pw = request.form.get("new_password", "")
-    if not hmac.compare_digest(current.encode(), ADMIN_PASSWORD.encode()):
-        stats = get_admin_stats()
-        return render_template(
-            "admin.html",
-            error="Current password is incorrect.",
-            logins=get_login_activity(),
-            **stats
-        )
-    if len(new_pw) < 6:
-        stats = get_admin_stats()
-        return render_template(
-            "admin.html",
-            error="New password must be at least 6 characters.",
-            logins=get_login_activity(),
-            **stats
-        )
-    ADMIN_PASSWORD = new_pw
-    return redirect("/admin?msg=Password+updated+successfully.#settings")
+    problem = None
+    if not admin_password_ok(current):
+        problem = "Current password is incorrect."
+    elif len(new_pw) < 8:
+        problem = "New password must be at least 8 characters."
+    elif new_pw == current:
+        problem = "New password must be different from the current one."
+    if problem:
+        return render_template("admin.html", error=problem, logins=get_login_activity(), **get_admin_stats())
+    set_admin_password(new_pw)
+    return admin_redirect("Password updated. It stays in effect after restarts.", "settings")
 
 
 @app.route("/admin/toggle-user", methods=["POST"])
@@ -947,6 +980,14 @@ def admin_logout():
 
 # ── REST API (v1) + API-key page ───────────────────────────────
 # Registered last so run_full_scan, get_db and execute already exist.
+if ADMIN_PASSWORD == "admin123" and not admin_password_is_custom():
+    print("WARNING: ADMIN_PASSWORD is still the insecure default (admin123). "
+          "Set it in .env, or change it in Admin > Settings.")
+if os.environ.get("REQUIRE_SECRETS") == "1" and (
+        app.secret_key == "dev-only-fallback-change-me"
+        or (ADMIN_PASSWORD == "admin123" and not admin_password_is_custom())):
+    raise RuntimeError("REQUIRE_SECRETS=1 but SECRET_KEY and/or ADMIN_PASSWORD are still the insecure defaults. "
+                       "Set real values in the environment before starting.")
 init_api_tables(get_db, execute)
 app.register_blueprint(create_api_blueprint(run_full_scan, get_db, execute))
 
