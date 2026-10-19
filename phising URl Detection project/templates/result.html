@@ -1,523 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Scan result — PhishGuard</title>
+<style>
+  :root{--navy:#0f2342;--navy-2:#1e3a5f;--brand:#2563eb;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff;
+        --ok:#16a34a;--ok-bg:#f0fdf4;--warn:#d97706;--warn-bg:#fffbeb;--bad:#dc2626;--bad-bg:#fef2f2;--r:14px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  :focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+  .pg-header{background:var(--navy);position:sticky;top:0;z-index:20;border-bottom:1px solid rgba(255,255,255,.08)}
+  .pg-header .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:17px;letter-spacing:-.01em}
+  .brand .ic{width:24px;height:24px;color:#60a5fa}
+  nav{display:flex;align-items:center;gap:4px}
+  nav a{color:#b6c4dc;font-size:14px;font-weight:500;padding:8px 13px;border-radius:8px;transition:background .15s,color .15s}
+  nav a:hover{background:rgba(255,255,255,.08);color:#fff} nav a.on{background:rgba(96,165,250,.16);color:#fff}
+  nav a.out{border:1px solid rgba(255,255,255,.2);margin-left:8px}
+  main{padding:32px 0 56px}
 
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Result — Phishing URL Detector</title>
-  <link rel="stylesheet" href="/static/style.css"/>
-  <style>
-    /* Dynamic width set via CSS variable — avoids VS Code CSS linter errors */
-    :root {
-      --meter-width: {{ risk }}%;
-    }
+  .verdict{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center;background:var(--card);border:1px solid var(--line);
+           border-left:6px solid var(--c);border-radius:var(--r);padding:26px 28px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .verdict.bad{--c:var(--bad);background:linear-gradient(90deg,var(--bad-bg),#fff 55%)}
+  .verdict.warn{--c:var(--warn);background:linear-gradient(90deg,var(--warn-bg),#fff 55%)}
+  .verdict.ok{--c:var(--ok);background:linear-gradient(90deg,var(--ok-bg),#fff 55%)}
+  .verdict.off{--c:var(--muted)}
+  .badge{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--c);color:#fff}
+  .badge .ic{width:30px;height:30px}
+  .verdict h1{font-size:26px;letter-spacing:-.02em;line-height:1.2;color:var(--c)}
+  .verdict p{color:#334155;margin-top:6px;max-width:620px}
+  .score{text-align:center;min-width:130px} .score b{display:block;font-size:40px;font-weight:800;letter-spacing:-.03em;color:var(--c);line-height:1}
+  .score small{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .meter{height:8px;background:#e2e8f0;border-radius:6px;margin-top:10px;overflow:hidden} .meter i{display:block;height:100%;width:var(--w);background:var(--c);border-radius:6px}
+  .target{margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+  .target code{flex:1;min-width:200px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#1e3a8a;word-break:break-all}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:#f1f5f9;border-radius:6px;padding:3px 8px}
+  .btn{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:10px 18px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);transition:background .15s}
+  .btn:hover{background:#f8fafc} .btn.pri{background:var(--brand);border-color:var(--brand);color:#fff} .btn.pri:hover{background:#1d4ed8}
 
-    /* ── Explainability / domain age / typosquat / SSL ── */
-    .reason-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-left: 3px solid #f59e0b;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .reason-box h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
-    }
-    .reason-box ul {
-      margin: 0;
-      padding-left: 20px;
-    }
-    .reason-box li {
-      margin-bottom: 6px;
-      font-size: 14px;
-    }
-
-    .domain-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .domain-box h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
-    }
-    .risk-badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-      margin-top: 6px;
-    }
-    .badge-high   { background: rgba(239,68,68,.15);  color: #f87171; border: 1px solid rgba(239,68,68,.35); }
-    .badge-medium { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.35); }
-    .badge-low    { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.35); }
-    .badge-unknown{ background: rgba(148,163,184,.15);color: #94a3b8; border: 1px solid rgba(148,163,184,.35); }
-
-    .typo-alert {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-      color: #fca5a5;
-      font-size: 14px;
-    }
-
-    /* SSL certificate inspection box */
-    .ssl-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .ssl-box h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
-    }
-    .ssl-box ul {
-      margin: 6px 0 0 0;
-      padding-left: 20px;
-    }
-    .ssl-box li {
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-    .ssl-row {
-      font-size: 14px;
-      margin-bottom: 3px;
-    }
-
-    /* ── Redirect chain box ── */
-    .redirect-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-left: 3px solid #38bdf8;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .redirect-box h3 {
-      margin: 0 0 8px 0;
-      font-size: 15px;
-    }
-    .redirect-chain-list {
-      margin: 8px 0 0 0;
-      padding-left: 0;
-      list-style: none;
-      counter-reset: hop;
-    }
-    .redirect-chain-list li {
-      counter-increment: hop;
-      font-family: monospace;
-      font-size: 13px;
-      padding: 6px 0 6px 34px;
-      position: relative;
-      border-left: 1px dashed rgba(56, 189, 248, 0.4);
-      margin-left: 10px;
-      word-break: break-all;
-    }
-    .redirect-chain-list li::before {
-      content: counter(hop);
-      position: absolute;
-      left: -11px;
-      top: 4px;
-      background: #38bdf8;
-      color: #0f172a;
-      font-family: var(--font, inherit);
-      font-weight: 700;
-      font-size: 11px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .redirect-chain-list li:last-child {
-      border-left: 1px dashed transparent;
-      color: #7dd3fc;
-      font-weight: 600;
-    }
-    .redirect-final-tag {
-      display: inline-block;
-      margin-left: 8px;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      background: rgba(56, 189, 248, 0.15);
-      color: #7dd3fc;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      padding: 1px 8px;
-      border-radius: 10px;
-      vertical-align: middle;
-    }
-    .redirect-warning {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #fbbf24;
-    }
-    .redirect-error {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #f87171;
-    }
-
-    /* ── Favicon visual-similarity box ── */
-    .favicon-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-    }
-    .favicon-box.clone-alert {
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      background: rgba(239, 68, 68, 0.08);
-    }
-    .favicon-preview {
-      width: 40px;
-      height: 40px;
-      border-radius: 6px;
-      background: #1e293b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .favicon-preview img {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
-    }
-    .favicon-text h3 {
-      margin: 0 0 6px 0;
-      font-size: 15px;
-    }
-    .favicon-text p {
-      margin: 0 0 4px 0;
-      font-size: 14px;
-    }
-    .clone-tag {
-      display: inline-block;
-      background: rgba(239,68,68,.15);
-      color: #f87171;
-      border: 1px solid rgba(239,68,68,.35);
-      border-radius: 10px;
-      padding: 2px 10px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      margin-left: 8px;
-    }
-
-    /* ── Page content analysis box ── */
-    .page-box {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-left: 3px solid #a78bfa;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .page-box.page-alert { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
-    .page-box h3 { margin: 0 0 8px 0; font-size: 15px; }
-    .page-box p  { margin: 0 0 6px 0; font-size: 14px; }
-    .page-box ul { margin: 6px 0 0 0; padding-left: 20px; }
-    .page-box li { margin-bottom: 6px; font-size: 14px; }
-
-    /* ── Risk breakdown ── */
-    .breakdown-box {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-left: 3px solid #64748b;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-    }
-    .breakdown-box h3 { margin: 0 0 8px 0; font-size: 15px; }
-    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    .breakdown-table td { padding: 5px 0; border-bottom: 1px solid rgba(148,163,184,.2); }
-    .breakdown-table td.pts { text-align: right; font-weight: 700; font-family: monospace; white-space: nowrap; padding-left: 16px; }
-    .pts-up { color: #dc2626; }
-    .pts-down { color: #16a34a; }
-    .breakdown-table tr.total td { border-bottom: none; font-weight: 700; padding-top: 8px; }
-    .breakdown-note { margin: 8px 0 0 0; font-size: 12px; color: #64748b; }
-
-    /* ── Blocked-URL state ── */
-    .status-blocked {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-weight: 600;
-      color: #fbbf24;
-      background: rgba(245,158,11,.15);
-      border: 1px solid rgba(245,158,11,.35);
-    }
-    .blocked-box {
-      background: rgba(245, 158, 11, 0.08);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 10px;
-      font-size: 14px;
-      color: #fcd34d;
-    }
-  </style>
+  .grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin-top:20px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card h2{display:flex;align-items:center;gap:10px;font-size:15px;letter-spacing:-.005em;margin-bottom:12px}
+  .card h2 .ic{color:var(--brand)} .card h2 .pill{margin-left:auto}
+  h3.sec{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:34px 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:14px} td{padding:9px 0;border-bottom:1px solid var(--line)} td.pts{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-family:ui-monospace,Consolas,monospace}
+  td.up{color:var(--bad)} td.down{color:var(--ok)} tr.total td{border-bottom:0;font-weight:700;padding-top:12px}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px}
+  ol.steps{list-style:none;counter-reset:s} ol.steps li{counter-increment:s;display:flex;gap:12px;padding:9px 0;font-size:14px;color:#334155;border-bottom:1px solid var(--line)}
+  ol.steps li:last-child{border-bottom:0} ol.steps li::before{content:counter(s);flex:none;width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+  .pill{font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:#dcfce7;color:#166534} .pill.warn{background:#fef3c7;color:#92400e} .pill.bad{background:#fee2e2;color:#991b1b} .pill.na{background:#e2e8f0;color:#475569}
+  .kv{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px} .kv:last-child{border-bottom:0}
+  .kv span:first-child{color:var(--muted)} .kv span:last-child{font-weight:600;text-align:right;word-break:break-word}
+  .muted{color:var(--muted);font-size:14px} ul.list{list-style:none} ul.list li{padding:6px 0;font-size:14px;color:#334155;display:flex;gap:10px;align-items:flex-start}
+  ul.list li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c,#94a3b8);margin-top:8px;flex:none}
+  ul.list li.bad{--c:var(--bad)} ul.list li.warn{--c:var(--warn)} ul.list li.low{--c:#94a3b8}
+  .hops{list-style:none} .hops li{display:flex;gap:10px;padding:6px 0;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;word-break:break-all;color:#334155}
+  .hops li.last{font-weight:700;color:#1e3a8a} .hops li i{font-style:normal;flex:none;width:20px;height:20px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-family:system-ui;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .fav{display:flex;gap:14px;align-items:flex-start} .fav img{width:32px;height:32px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:4px;background:#f8fafc}
+  .vt{font-family:ui-monospace,Consolas,monospace;font-size:13px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:#334155;word-break:break-word}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+  footer{border-top:1px solid var(--line);padding:22px 0;text-align:center;font-size:13px;color:var(--muted)}
+  @media(max-width:860px){.grid2,.cards{grid-template-columns:1fr}.verdict{grid-template-columns:auto 1fr}.score{grid-column:1/-1;text-align:left}}
+  @media(max-width:600px){nav a:not(.out):not(.on){display:none}.verdict{padding:20px}.verdict h1{font-size:22px}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
+  <symbol id="i-block" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-redirect" viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 9"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></symbol>
+</svg>
 
-<nav class="navbar">
-  <span class="nav-brand">🛡 Phishing Detector</span>
-  <div class="nav-links">
-    <a href="/dashboard">Scan</a>
-    <a href="/scan-qr">Scan QR</a>
-    <a href="/bulk-scan">Bulk Scan</a>
-    <a href="/history">History</a>
-    <a href="/account/api-key">API Key</a>
-    <a href="/logout">Logout</a>
+<header class="pg-header"><div class="wrap">
+  <a class="brand" href="/dashboard"><svg class="ic"><use href="#i-shield"/></svg>PhishGuard</a>
+  <nav aria-label="Main"><a class="on" href="/dashboard">Scan</a><a href="/scan-qr">Scan QR</a><a href="/bulk-scan">Bulk scan</a>
+    <a href="/history">History</a><a href="/account/api-key">API key</a><a class="out" href="/logout">Logout</a></nav>
+</div></header>
+
+{% set bad = 'PHISHING' in result %}
+{% set tier = 'off' if blocked else ('bad' if bad else ('warn' if risk >= 30 else 'ok')) %}
+{% set top = (risk_breakdown|default([])|selectattr('points','gt',0)|sort(attribute='points',reverse=true)|list)[:3] %}
+
+<main class="wrap">
+  <section class="verdict {{ tier }}" aria-live="polite">
+    <div class="badge"><svg class="ic"><use href="#i-{{ 'block' if tier == 'off' else ('alert' if tier == 'bad' else ('alert' if tier == 'warn' else 'shield')) }}"/></svg></div>
+    <div>
+      {% if tier == 'off' %}
+        <h1>This link was not scanned</h1>
+        <p>It points to a private or internal address, or uses an unsupported kind of link, so no request was made to it. Do not open it unless you know exactly what it is.</p>
+      {% elif tier == 'bad' %}
+        <h1>Don't open this link</h1>
+        <p>Our checks found strong warning signs that this is a phishing page, a fake site made to steal passwords or payment details.</p>
+      {% elif tier == 'warn' %}
+        <h1>Be careful with this link</h1>
+        <p>Some signals look unusual, but not enough to call it phishing. Avoid entering passwords or payment details unless you trust where it came from.</p>
+      {% else %}
+        <h1>This link looks safe</h1>
+        <p>We found no strong warning signs. That is not a guarantee, so stay careful with any site you reached from an unexpected message.</p>
+      {% endif %}
+    </div>
+    {% if tier != 'off' %}
+    <div class="score"><b>{{ risk|int }}</b><small>Risk score / 100</small><div class="meter"><i style="--w:{{ risk|int }}%"></i></div></div>
+    {% endif %}
+  </section>
+
+  <div class="target">
+    <span class="tag">Link</span><code id="scanned-url">{{ url }}</code>
+    {% if from_qr %}<span class="tag">From QR code</span>{% endif %}
+    <button class="btn" type="button" id="copy-btn"><svg class="ic"><use href="#i-copy"/></svg>Copy summary</button>
   </div>
-</nav>
+  {% if redirect_info and redirect_info.final_url and redirect_info.final_url != url and not blocked %}
+    <p class="note" style="margin-top:10px">This link redirects to <b style="word-break:break-all">{{ redirect_info.final_url }}</b>. That is the address we checked.</p>
+  {% endif %}
 
-<div class="container">
+  {% if not blocked %}
+  <div class="grid2">
+    <section class="card">
+      <h2><svg class="ic"><use href="#i-chart"/></svg>How the score was reached</h2>
+      {% if risk_breakdown %}
+      <table>
+        {% for sig in risk_breakdown %}<tr><td>{{ sig.label }}</td><td class="pts {{ 'up' if sig.points > 0 else 'down' }}">{{ '%+d' % sig.points }}</td></tr>{% endfor %}
+        <tr class="total"><td>Final risk score (0 to 100)</td><td class="pts">{{ risk|int }}</td></tr>
+      </table>
+      {% endif %}
+      <p class="note">A machine-learning model reads the web address and sets a starting point. Independent checks (VirusTotal, domain age, the page itself, and more) then raise or lower it. 60 or more counts as phishing.</p>
+    </section>
+    <section class="card">
+      <h2><svg class="ic"><use href="#i-list"/></svg>What to do now</h2>
+      <ol class="steps">
+        {% if tier == 'bad' %}
+          <li>Close the page and do not click anything on it.</li>
+          <li>Never type a password, OTP, UPI PIN or card number into it.</li>
+          <li>If you already did, change that account's password straight away and turn on two-step verification.</li>
+          <li>If money was involved, call your bank, and in India call <b>1930</b> or report at <b>cybercrime.gov.in</b>.</li>
+        {% elif tier == 'warn' %}
+          <li>Check that the address matches the real website you expect.</li>
+          <li>Don't enter passwords or payment details unless you trust the sender.</li>
+          <li>When unsure, type the website's address yourself instead of using the link.</li>
+        {% else %}
+          <li>You can continue, but check the address matches the site you expect.</li>
+          <li>Be wary if the link came from an unexpected message that rushes you to act.</li>
+          <li>Banks and UPI apps never ask for your PIN or OTP by message or call.</li>
+        {% endif %}
+      </ol>
+    </section>
+  </div>
 
-  <div class="card result-card">
+  <h3 class="sec">Evidence behind the verdict</h3>
+  <div class="cards">
 
-    <h1>Detection Result</h1>
-
-    <div class="result-item">
-      <strong>URL:</strong>
-      <span class="url-text">{{ url }}</span>
-    </div>
-
-    <div class="result-item">
-      <strong>Status:</strong>
-      <span class="status {% if blocked %}status-blocked{% elif 'PHISHING' in result %}status-danger{% else %}status-safe{% endif %}">
-        {{ result }}
-      </span>
-    </div>
-
-    {% if blocked %}
-    <!-- ── URL was blocked before any scan ran ── -->
-    <div class="result-item">
-      <div class="blocked-box">
-        🚫 This URL was not scanned. It points to a private/internal address, uses an
-        unsupported scheme, or redirects to one. For safety, no requests were made to it.
-        {% if redirect_info and redirect_info.error %}<br><small>{{ redirect_info.error }}</small>{% endif %}
-      </div>
-    </div>
-    {% else %}
-
-    <div class="result-item">
-      <strong>Risk Score: {{ risk }}%</strong>
-      <div class="meter">
-        <div class="meter-fill {% if risk >= 70 %}meter-high{% elif risk >= 40 %}meter-medium{% else %}meter-low{% endif %}">
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Risk breakdown: how the score was reached ── -->
-    {% if risk_breakdown %}
-    <div class="result-item">
-      <div class="breakdown-box">
-        <h3>🧮 Risk Breakdown</h3>
-        <table class="breakdown-table">
-          {% for sig in risk_breakdown %}
-          <tr>
-            <td>{{ sig.label }}</td>
-            <td class="pts {% if sig.points > 0 %}pts-up{% elif sig.points < 0 %}pts-down{% endif %}">{{ '%+d' % sig.points }}</td>
-          </tr>
-          {% endfor %}
-          <tr class="total"><td>Final risk score (limited to 0–100)</td><td class="pts">{{ risk }}</td></tr>
-        </table>
-        <p class="breakdown-note">The ML model only sees the domain name, so it sets the starting point; independent evidence (VirusTotal, domain age, page content …) moves the score. 60 or more is treated as phishing.</p>
-      </div>
-    </div>
+    {% if top and tier != 'ok' %}
+    <section class="card"><h2><svg class="ic"><use href="#i-alert"/></svg>Main warning signs</h2>
+      <ul class="list">{% for t in top %}<li class="bad">{{ t.label }}</li>{% endfor %}</ul></section>
     {% endif %}
 
-    <!-- ── Redirect chain (shortener expansion) ── -->
-    {% if redirect_info and (redirect_info.was_shortened or redirect_info.error) %}
-    <div class="result-item">
-      <div class="redirect-box">
-        <h3>
-          🔗 Redirect Chain
-          <span class="redirect-final-tag">{{ redirect_info.hop_count }} hop{{ 's' if redirect_info.hop_count != 1 else '' }}</span>
-        </h3>
-        <ol class="redirect-chain-list">
-          {% for hop in redirect_info.chain %}
-            <li>
-              {{ hop }}
-              {% if loop.last %}<span class="redirect-final-tag">final destination — scanned</span>{% endif %}
-            </li>
-          {% endfor %}
-        </ol>
-        {% if redirect_info.chain_truncated %}
-          <div class="redirect-warning">⚠️ Chain exceeded the maximum hop limit — showing the furthest resolved destination.</div>
-        {% endif %}
-        {% if redirect_info.error %}
-          <div class="redirect-error">⚠️ {{ redirect_info.error }}</div>
-        {% endif %}
-      </div>
-    </div>
+    {% if redirect_info and redirect_info.chain and redirect_info.chain|length > 1 %}
+    <section class="card"><h2><svg class="ic"><use href="#i-redirect"/></svg>Redirect chain<span class="pill na">{{ redirect_info.hop_count }} hop{{ '' if redirect_info.hop_count == 1 else 's' }}</span></h2>
+      <ol class="hops">{% for hop in redirect_info.chain %}<li class="{{ 'last' if loop.last }}"><i>{{ loop.index }}</i><span>{{ hop }}</span></li>{% endfor %}</ol>
+      {% if redirect_info.chain_truncated %}<p class="note">The chain was longer than our limit; this is the furthest address we reached.</p>{% endif %}</section>
+    {% elif redirect_info and redirect_info.error %}
+    <section class="card"><h2><svg class="ic"><use href="#i-redirect"/></svg>Connection</h2><p class="muted">{{ redirect_info.error }}</p></section>
     {% endif %}
 
-    <!-- ── Explainability: why this URL was flagged ── -->
     {% if reasons %}
-    <div class="result-item">
-      <div class="reason-box">
-        <h3>⚠️ Why the ML model flagged it</h3>
-        <ul>
-          {% for r in reasons %}
-            <li>{{ r.explanation }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
+    <section class="card"><h2><svg class="ic"><use href="#i-chart"/></svg>Why the ML model flagged it</h2>
+      <ul class="list">{% for r in reasons %}<li class="warn">{{ r.explanation }}</li>{% endfor %}</ul></section>
     {% endif %}
 
-    <!-- ── Domain age (WHOIS) ── -->
-    <div class="result-item">
-      <div class="domain-box">
-        <h3>🌐 Domain Info</h3>
-        {% if domain_info and domain_info.domain_age_days is not none %}
-          <p>Registered: {{ domain_info.creation_date }} ({{ domain_info.domain_age_days }} days ago)</p>
-          <p>Registrar: {{ domain_info.registrar or "Unknown" }}</p>
-          <span class="risk-badge badge-{{ domain_info.risk }}">{{ domain_info.risk }} risk</span>
-        {% else %}
-          <p>WHOIS data unavailable for this domain.</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- ── Typosquatting / brand impersonation ── -->
     {% if typo_result and typo_result.is_typosquat %}
-    <div class="result-item">
-      <div class="typo-alert">
-        🚨 This domain closely resembles <strong>{{ typo_result.likely_target }}</strong>
-        (edit distance: {{ typo_result.edit_distance }}). Possible brand impersonation.
-      </div>
-    </div>
+    <section class="card"><h2><svg class="ic"><use href="#i-alert"/></svg>Look-alike domain<span class="pill bad">Impersonation</span></h2>
+      <p class="muted">This domain closely resembles <b>{{ typo_result.likely_target }}</b> (edit distance {{ typo_result.edit_distance }}).</p></section>
     {% endif %}
 
-    <!-- ── SSL certificate inspection ── -->
-    <div class="result-item">
-      <div class="ssl-box">
-        <h3>🔒 SSL Certificate</h3>
-        {% if ssl_info %}
-          {% if ssl_info.has_cert %}
-            <div class="ssl-row"><strong>Issuer:</strong> {{ ssl_info.issuer }}</div>
-            {% if ssl_info.days_until_expiry is not none %}
-              <div class="ssl-row">
-                <strong>Expiry:</strong>
-                {% if ssl_info.is_expired %}
-                  Expired {{ -ssl_info.days_until_expiry }} day(s) ago
-                {% else %}
-                  Valid for {{ ssl_info.days_until_expiry }} more day(s)
-                {% endif %}
-              </div>
-            {% endif %}
-            <div class="ssl-row"><strong>Self-signed:</strong> {{ "Yes" if ssl_info.is_self_signed else "No" }}</div>
-          {% else %}
-            <div class="ssl-row">No valid SSL certificate found on this domain.</div>
-          {% endif %}
-          <span class="risk-badge badge-{{ ssl_info.risk }}">{{ ssl_info.risk }} risk</span>
-          {% if ssl_info.notes %}
-            <ul>
-              {% for note in ssl_info.notes %}
-                <li>{{ note }}</li>
-              {% endfor %}
-            </ul>
-          {% endif %}
-        {% else %}
-          <p>SSL data unavailable.</p>
-        {% endif %}
-      </div>
-    </div>
+    <section class="card"><h2><svg class="ic"><use href="#i-globe"/></svg>Domain age
+      {% if domain_info and domain_info.domain_age_days is not none %}<span class="pill {{ {'high':'bad','medium':'warn','low':'ok'}.get(domain_info.risk,'na') }}">{{ domain_info.risk|default('unknown') }} risk</span>{% else %}<span class="pill na">Unavailable</span>{% endif %}</h2>
+      {% if domain_info and domain_info.domain_age_days is not none %}
+        <div class="kv"><span>Registered</span><span>{{ domain_info.creation_date }}</span></div>
+        <div class="kv"><span>Age</span><span>{{ domain_info.domain_age_days }} days</span></div>
+        <div class="kv"><span>Registrar</span><span>{{ domain_info.registrar or 'Unknown' }}</span></div>
+      {% else %}<p class="muted">Registration details could not be found for this domain.</p>{% endif %}</section>
 
-    <!-- ── Favicon visual similarity (brand-clone detection) ── -->
-    {% if favicon_info and favicon_info.has_favicon %}
-    <div class="result-item">
-      <div class="favicon-box {% if favicon_info.is_visual_clone %}clone-alert{% endif %}">
-        <div class="favicon-preview">
-          <img src="{{ favicon_info.favicon_url }}" alt="Site favicon" onerror="this.style.display='none'">
-        </div>
-        <div class="favicon-text">
-          <h3>
-            🖼️ Favicon Visual Match
-            {% if favicon_info.is_visual_clone %}<span class="clone-tag">Likely Brand Clone</span>{% endif %}
-          </h3>
-          {% if favicon_info.matched_brand %}
-            <p>
-              Closest match: <strong>{{ favicon_info.matched_brand }}</strong>
-              (visual similarity distance: {{ favicon_info.hamming_distance }}/64)
-            </p>
-          {% endif %}
-          <p>{{ favicon_info.note }}</p>
-        </div>
-      </div>
-    </div>
-    {% elif favicon_info and favicon_info.note %}
-    <div class="result-item">
-      <div class="favicon-box">
-        <div class="favicon-text">
-          <h3>🖼️ Favicon Visual Match</h3>
-          <p>{{ favicon_info.note }}</p>
-        </div>
-      </div>
-    </div>
-    {% endif %}
+    <section class="card"><h2><svg class="ic"><use href="#i-lock"/></svg>Security certificate
+      {% if ssl_info %}{% set ssl_bad = (not ssl_info.has_cert) or ssl_info.is_expired or ssl_info.is_self_signed %}
+        <span class="pill {{ 'bad' if ssl_bad else 'ok' }}">{{ 'Problem' if ssl_bad else 'Valid' }}</span>{% else %}<span class="pill na">Unavailable</span>{% endif %}</h2>
+      {% if ssl_info and ssl_info.has_cert %}
+        <div class="kv"><span>Issued by</span><span>{{ ssl_info.issuer }}</span></div>
+        {% if ssl_info.days_until_expiry is not none %}<div class="kv"><span>Expiry</span><span>{% if ssl_info.is_expired %}Expired {{ -ssl_info.days_until_expiry }} day(s) ago{% else %}In {{ ssl_info.days_until_expiry }} day(s){% endif %}</span></div>{% endif %}
+        <div class="kv"><span>Self-signed</span><span>{{ 'Yes' if ssl_info.is_self_signed else 'No' }}</span></div>
+      {% elif ssl_info %}<p class="muted">No working HTTPS certificate was found, so traffic to this site is not encrypted.</p>
+      {% else %}<p class="muted">Certificate data is unavailable.</p>{% endif %}</section>
 
-    <!-- ── Page content analysis ── -->
-    {% if page_info %}
-    <div class="result-item">
-      <div class="page-box {% if page_info.strong_signal %}page-alert{% endif %}">
-        <h3>📄 Page Content Analysis</h3>
-        {% if page_info.fetched %}
-          {% if page_info.title %}<p>Page title: <strong>{{ page_info.title }}</strong></p>{% endif %}
-          {% if page_info.findings %}
-            <ul>
-              {% for f in page_info.findings %}
-                <li><span class="risk-badge badge-{{ f.severity }}">{{ f.severity }}</span> {{ f.text }}</li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p>No suspicious page behaviour found.</p>
-          {% endif %}
-        {% else %}
-          <p>{{ page_info.error or "The page could not be analysed." }}</p>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
+    <section class="card"><h2><svg class="ic"><use href="#i-image"/></svg>Logo copy check
+      {% if favicon_info and favicon_info.is_visual_clone %}<span class="pill bad">Likely clone</span>{% elif favicon_info and favicon_info.has_favicon %}<span class="pill ok">No clone found</span>{% else %}<span class="pill na">No icon</span>{% endif %}</h2>
+      {% if favicon_info and favicon_info.has_favicon %}
+        <div class="fav"><img src="{{ favicon_info.favicon_url }}" alt="Site icon" onerror="this.style.display='none'"/>
+          <div class="muted">{% if favicon_info.matched_brand %}Closest known brand: <b>{{ favicon_info.matched_brand }}</b><br>{% endif %}{{ favicon_info.note }}</div></div>
+      {% else %}<p class="muted">{{ (favicon_info.note if favicon_info else '') or 'No site icon could be retrieved.' }}</p>{% endif %}</section>
 
-    <div class="result-item">
-      <strong>VirusTotal Report:</strong>
-      <p class="vt-result">{{ vt_result }}</p>
-    </div>
+    <section class="card"><h2><svg class="ic"><use href="#i-file"/></svg>The page itself
+      {% if page_info and page_info.fetched %}<span class="pill {{ 'bad' if page_info.strong_signal else ('warn' if page_info.findings else 'ok') }}">{{ 'High risk' if page_info.strong_signal else ('Warnings' if page_info.findings else 'Nothing found') }}</span>{% else %}<span class="pill na">Not checked</span>{% endif %}</h2>
+      {% if page_info and page_info.fetched %}
+        {% if page_info.title %}<div class="kv"><span>Page title</span><span>{{ page_info.title }}</span></div>{% endif %}
+        {% if page_info.findings %}<ul class="list" style="margin-top:6px">{% for f in page_info.findings %}<li class="{{ f.severity if f.severity in ('bad','warn','low') else ('bad' if f.severity == 'high' else ('warn' if f.severity == 'medium' else 'low')) }}">{{ f.text }}</li>{% endfor %}</ul>
+        {% else %}<p class="muted" style="margin-top:6px">No suspicious behaviour found on the page.</p>{% endif %}
+      {% else %}<p class="muted">{{ (page_info.error if page_info else '') or 'The page could not be analysed.' }}</p>{% endif %}</section>
 
-    {% endif %}{# end: not blocked #}
-
-    <div class="result-actions">
-      <a href="/dashboard" class="btn btn-primary">🔍 Scan Another URL</a>
-      <a href="/history"   class="btn btn-secondary">📋 View History</a>
-    </div>
-
+    <section class="card"><h2><svg class="ic"><use href="#i-shield"/></svg>VirusTotal
+      {% set vt = vt_result|default('')|string %}
+      <span class="pill {{ 'bad' if 'MALICIOUS' in vt else ('ok' if 'CLEAN' in vt else 'na') }}">{{ 'Flagged' if 'MALICIOUS' in vt else ('Clean' if 'CLEAN' in vt else 'No verdict') }}</span></h2>
+      <div class="vt">{{ (vt.split('—')[-1] if '—' in vt else vt)|trim or 'No report available.' }}</div></section>
   </div>
+  {% endif %}
 
-</div>
+  <div class="actions">
+    <a class="btn pri" href="/dashboard"><svg class="ic"><use href="#i-shield"/></svg>Scan another link</a>
+    <a class="btn" href="/history">View history</a>
+  </div>
+</main>
 
+<footer><div class="wrap">PhishGuard gives a risk assessment, not a guarantee. When in doubt, don't enter passwords or payment details.</div></footer>
+
+<script>
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this, text = 'PhishGuard result for ' + document.getElementById('scanned-url').textContent +
+      ': {{ "NOT SCANNED" if blocked else ("PHISHING" if bad else "no strong warning signs") }}{% if not blocked %} (risk {{ risk|int }}/100){% endif %}';
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () {
+      btn.lastChild.textContent = 'Copied'; setTimeout(function () { btn.lastChild.textContent = 'Copy summary'; }, 1800);
+    }, function () { window.prompt('Copy this summary:', text); });
+  });
+</script>
 </body>
 </html>
