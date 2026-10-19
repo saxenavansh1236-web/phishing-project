@@ -13,7 +13,7 @@ import time
 from collections import defaultdict, deque
 from functools import wraps
 
-from flask import Blueprint, g, jsonify, redirect, render_template_string, request, session
+from flask import Blueprint, g, jsonify, redirect, render_template, render_template_string, request, session
 
 RATE_LIMIT = 30   # requests per key...
 WINDOW = 60       # ...per this many seconds (in-memory; use Redis/Flask-Limiter with >1 worker)
@@ -150,6 +150,6 @@ def create_api_blueprint(run_full_scan, get_db, execute):
             conn.commit()
         row = execute(conn, "SELECT key_prefix FROM api_keys WHERE username=?", (user,)).fetchone()
         conn.close()
-        return render_template_string(KEY_PAGE, new_key=new_key, prefix=row["key_prefix"] if row else None)
+        return render_template("api_key.html", new_key=new_key, prefix=row["key_prefix"] if row else None)
 
     return bp

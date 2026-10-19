@@ -490,7 +490,25 @@ def dashboard():
         scan_data = run_full_scan(url, session["user"])
         return render_template("result.html", **scan_data)
 
-    return render_template("dashboard.html")
+    conn = get_db()
+    rows = execute(
+        conn,
+        "SELECT url, result, risk FROM history WHERE username=? ORDER BY id DESC LIMIT 10",
+        (session["user"],),
+    ).fetchall()
+    totals = execute(
+        conn,
+        "SELECT COUNT(*) AS total, "
+        "SUM(CASE WHEN result LIKE '%PHISHING%' THEN 1 ELSE 0 END) AS threats "
+        "FROM history WHERE username=?",
+        (session["user"],),
+    ).fetchone()
+    conn.close()
+
+    total = totals["total"] or 0
+    threats = totals["threats"] or 0
+    stats = {"total": total, "threats": threats, "safe": total - threats}
+    return render_template("dashboard.html", stats=stats, recent=rows)
 
 
 @app.route("/scan-qr", methods=["GET", "POST"])
